@@ -26,6 +26,7 @@ replay_pid*
 # Ignore Gradle project-specific cache directory
 .gradle
 .kotlin
+gradle/wrapper/gradle-wrapper.jar
 
 # Ignore Gradle build output directory
 build
@@ -33,3 +34,5 @@ build
 # IDEs
 .vscode
 .idea
+
+a/

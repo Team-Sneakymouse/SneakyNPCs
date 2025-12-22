@@ -1,1 +1,1 @@
-rootProject.name = "PaperPlugin"
+rootProject.name = "SneakyNPCs"

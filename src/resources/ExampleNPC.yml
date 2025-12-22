@@ -1,0 +1,25 @@
+friendship: false # not implemented
+reputation: CopperGuild
+menus: # requires exactly 4 entries
+  - type: quest
+    quests:
+      - quest: learning_to_jack_1
+        items:
+        - item: item-wood-spruce
+          amount: 99
+      - quest: learning_to_jack_2
+        items:
+        - item: item-wood-oak
+          amount: 99
+        - item: item-wood-birch
+          amount: 99
+  - type: shop
+    max_gold: 500
+    restock_time: 3600
+    items:
+      - item: item-wood-spruce
+        buyStacks: true
+  - type: custom
+    gui: lumberjack_training
+  - type: custom
+    gui: borrow_horn

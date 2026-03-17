@@ -379,10 +379,25 @@ class ConfigManager(private val plugin: SneakyNPCs) {
 
     fun parseShopMenu(menuYaml: Map<*, *>, npcId: String, path: String): Pair<ShopMenu?, List<String>> {
         val errors = mutableListOf<String>()
-        val allowedKeys = setOf("type", "items")
+        val allowedKeys = setOf("type", "items", "currency")
         val unknownKeys = menuYaml.keys.filterIsInstance<String>().filterNot { it in allowedKeys }
         if (unknownKeys.isNotEmpty()) {
             errors.add("$npcId ($path): Unknown shop menu keys ${unknownKeys.joinToString(", ")}")
+        }
+
+        val currencyId = when (val rawCurrency = menuYaml["currency"]) {
+            null -> null
+            is String -> rawCurrency.takeIf { it.isNotBlank() } ?: run {
+                errors.add("$npcId ($path): 'currency' cannot be blank")
+                null
+            }
+            else -> {
+                errors.add("$npcId ($path): Invalid 'currency' field. Expected string, got ${describeValue(rawCurrency)}")
+                null
+            }
+        }
+        if (currencyId != null && !plugin.currencyGraphService.hasCurrency(currencyId)) {
+            errors.add("$npcId ($path): Unknown shop currency '$currencyId'")
         }
 
         val itemsYaml = menuYaml["items"] as? List<*> ?: run {
@@ -429,7 +444,7 @@ class ConfigManager(private val plugin: SneakyNPCs) {
             return Pair(null, errors)
         }
 
-        return Pair(ShopMenu(items = items), errors)
+        return Pair(ShopMenu(items = items, currencyId = currencyId), errors)
     }
 
     fun parseShopMenuItem(itemYaml: Map<*, *>, npcId: String, path: String): Pair<ShopMenuItem?, List<String>> {

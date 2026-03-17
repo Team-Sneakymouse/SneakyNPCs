@@ -9,9 +9,11 @@ import com.danidipp.sneakynpcs.shop.ShopTransactionService
 import com.nisovin.magicspells.util.magicitems.MagicItem
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.NamedTextColor
+import net.kyori.adventure.text.format.TextDecoration
 import org.bukkit.entity.Player
 import org.bukkit.event.inventory.ClickType
 import org.bukkit.event.inventory.InventoryClickEvent
+import org.bukkit.inventory.ItemStack
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
@@ -23,7 +25,10 @@ data class ShopMenuItem(
     val price: ShopPrice,
 )
 
-class ShopMenu(private val items: List<ShopMenuItem>) : NPCMenu(MenuType.SHOP) {
+class ShopMenu(
+    private val items: List<ShopMenuItem>,
+    private val currencyId: String?,
+) : NPCMenu(MenuType.SHOP) {
     private val plugin = SneakyNPCs.getInstance()
     private val pageState = ConcurrentHashMap<UUID, Int>()
 
@@ -62,6 +67,7 @@ class ShopMenu(private val items: List<ShopMenuItem>) : NPCMenu(MenuType.SHOP) {
         when (val result = plugin.shopTransactionService.purchase(player, shopItem, quantity)) {
             is ShopTransactionService.PurchaseResult.Success -> {
                 player.playSound(player.location, "lom:buy", 1f, 1f)
+                render(gui, player, currentPage)
             }
             is ShopTransactionService.PurchaseResult.Failure -> {
                 player.playSound(player.location, "lom:fail_wrong", 1f, 1f)
@@ -83,6 +89,7 @@ class ShopMenu(private val items: List<ShopMenuItem>) : NPCMenu(MenuType.SHOP) {
         inv.clear()
         inv.setItem(0, makeItem(npc.guiModelKey, "alt"))
         inv.setItem(53, makeItem("lom:npcs/tradewindow"))
+        buildCurrencyTooltipItem(player)?.let { inv.setItem(39, it) }
 
         val pageStart = page * 24
         val pageItems = items.drop(pageStart).take(24)
@@ -104,6 +111,42 @@ class ShopMenu(private val items: List<ShopMenuItem>) : NPCMenu(MenuType.SHOP) {
 
     private fun isAllowedClick(click: ClickType): Boolean {
         return click == ClickType.LEFT || click == ClickType.SHIFT_LEFT
+    }
+
+    private fun buildCurrencyTooltipItem(player: Player): ItemStack? {
+        val selectedCurrencyId = currencyId ?: return null
+        val relatedCurrencies = plugin.currencyGraphService.getRelatedBankCurrencies(selectedCurrencyId)
+        if (relatedCurrencies.isEmpty()) return null
+
+        val lore = relatedCurrencies.map { currency ->
+            val amount = plugin.balanceService.getBankCurrencyUnits(player, currency)
+            Component.text()
+                .decoration(TextDecoration.ITALIC, false)
+                .append(Component.text(formatCurrencyId(currency.id), NamedTextColor.GOLD))
+                .append(Component.text(": ", NamedTextColor.DARK_GRAY))
+                .append(Component.text(amount.toString(), NamedTextColor.YELLOW))
+                .build()
+        }
+
+        return makeItem("lom:invisible").apply {
+            editMeta { meta ->
+                meta.displayName(
+                    Component.text("Bank Balance", NamedTextColor.YELLOW)
+                        .decoration(TextDecoration.ITALIC, false)
+                )
+                meta.lore(lore)
+            }
+        }
+    }
+
+    private fun formatCurrencyId(currencyId: String): String {
+        return currencyId.split('_', '-', ' ')
+            .filter { it.isNotBlank() }
+            .joinToString(" ") { part ->
+                part.lowercase().replaceFirstChar { char ->
+                    if (char.isLowerCase()) char.titlecase() else char.toString()
+                }
+            }
     }
 
     private fun getMaxPage(): Int = if (items.size > 24) 1 else 0

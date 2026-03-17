@@ -21,6 +21,7 @@ rootMenu:
             - item: item-wood-birch
               amount: 99
     - type: shop
+      currency: silver
       items:
         - item: item-wood-spruce
           buyStacks: true

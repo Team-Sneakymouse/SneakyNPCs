@@ -17,6 +17,16 @@ class CurrencyGraphService(private val plugin: SneakyNPCs) {
     fun hasCurrency(currencyId: String): Boolean = currencies.containsKey(currencyId)
     fun getAtomicValue(currencyId: String): BigInteger? = atomicValues[currencyId]
     fun getConvertibleCurrencies(currencyId: String): Set<String> = components[currencyId] ?: emptySet()
+    fun getRelatedBankCurrencies(currencyId: String): List<CurrencyDefinition> {
+        val related = components[currencyId] ?: return emptyList()
+        return related.mapNotNull(currencies::get)
+            .filter { it.variableId != null }
+            .sortedWith(
+                compareByDescending<CurrencyDefinition> { atomicValues[it.id] ?: BigInteger.ZERO }
+                    .thenBy { it.id }
+            )
+    }
+
     fun isConvertible(fromCurrencyId: String, toCurrencyId: String): Boolean =
         components[fromCurrencyId]?.contains(toCurrencyId) == true
 

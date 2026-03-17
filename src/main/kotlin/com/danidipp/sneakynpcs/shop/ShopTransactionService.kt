@@ -114,9 +114,9 @@ class ShopTransactionService(
         if (bankBuckets.isEmpty()) return null
 
         val bankResult = if (hasBankChange) {
-            collectWithOptionalOverpay(bankBuckets, remaining)
+            collectWithOptionalOverpayPreferred(bankBuckets, remaining, priceCurrency.id)
         } else {
-            collectExact(bankBuckets, remaining)
+            collectExactPreferred(bankBuckets, remaining, priceCurrency.id)
         } ?: return null
 
         collectedSpends.addAll(bankResult.spends)
@@ -210,8 +210,65 @@ class ShopTransactionService(
         return CollectResult(spends = mergeSpends(spends), collected = collected)
     }
 
+    private fun collectWithOptionalOverpayPreferred(
+        buckets: List<FundBucket>,
+        target: BigInteger,
+        preferredCurrencyId: String,
+    ): CollectResult? {
+        val orderedBuckets = orderBucketsWithPreferredCurrency(buckets, preferredCurrencyId)
+        val noOverpay = collectNoOverpayByOrder(orderedBuckets, target)
+        if (noOverpay.collected >= target) return noOverpay
+
+        val remaining = target.subtract(noOverpay.collected)
+        var chosen: Triple<FundBucket, Long, BigInteger>? = null
+        val spentByKey = noOverpay.spends.associateBy { "${it.currencyId}:${it.source.name}" }
+
+        for (bucket in orderedBuckets) {
+            val key = "${bucket.currencyId}:${bucket.source.name}"
+            val alreadySpent = spentByKey[key]?.units ?: 0L
+            val remainingUnits = bucket.availableUnits - alreadySpent
+            if (remainingUnits <= 0L) continue
+
+            val neededUnits = ceilDiv(remaining, bucket.atomicPerUnit)
+            if (neededUnits > remainingUnits) continue
+
+            val extraCollected = bucket.atomicPerUnit.multiply(BigInteger.valueOf(neededUnits))
+            val overpay = extraCollected.subtract(remaining)
+            val candidate = Triple(bucket, neededUnits, overpay)
+            if (chosen == null || overpay < chosen!!.third ||
+                (overpay == chosen!!.third && bucket.currencyId == preferredCurrencyId && chosen!!.first.currencyId != preferredCurrencyId) ||
+                (overpay == chosen!!.third && neededUnits < chosen!!.second)
+            ) {
+                chosen = candidate
+            }
+        }
+
+        if (chosen == null) return null
+
+        val spends = noOverpay.spends.toMutableList()
+        spends.add(
+            PaymentSpend(
+                currencyId = chosen!!.first.currencyId,
+                source = chosen!!.first.source,
+                units = chosen!!.second
+            )
+        )
+        val collected = noOverpay.collected.add(remaining).add(chosen!!.third)
+        return CollectResult(spends = mergeSpends(spends), collected = collected)
+    }
+
     private fun collectExact(buckets: List<FundBucket>, target: BigInteger): CollectResult? {
         val result = collectNoOverpayBestEffort(buckets, target)
+        if (result.collected == target) return result
+        return null
+    }
+
+    private fun collectExactPreferred(
+        buckets: List<FundBucket>,
+        target: BigInteger,
+        preferredCurrencyId: String,
+    ): CollectResult? {
+        val result = collectNoOverpayByOrder(orderBucketsWithPreferredCurrency(buckets, preferredCurrencyId), target)
         if (result.collected == target) return result
         return null
     }
@@ -271,6 +328,17 @@ class ShopTransactionService(
             }
         }
         return merged.values.toMutableList()
+    }
+
+    private fun orderBucketsWithPreferredCurrency(
+        buckets: List<FundBucket>,
+        preferredCurrencyId: String,
+    ): List<FundBucket> {
+        return buckets.sortedWith(
+            compareBy<FundBucket> { it.currencyId != preferredCurrencyId }
+                .thenByDescending { it.atomicPerUnit }
+                .thenBy { it.currencyId }
+        )
     }
 
     private fun ceilDiv(a: BigInteger, b: BigInteger): Long {

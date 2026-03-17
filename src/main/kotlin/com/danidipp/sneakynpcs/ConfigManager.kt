@@ -418,6 +418,17 @@ class ConfigManager(private val plugin: SneakyNPCs) {
             return Pair(null, errors)
         }
 
+        val duplicateItemIds = items.groupingBy { it.itemId }.eachCount()
+            .filterValues { it > 1 }
+            .keys
+            .sorted()
+        if (duplicateItemIds.isNotEmpty()) {
+            errors.add(
+                "$npcId ($path): Shop may not sell the same MagicItem more than once. Duplicates: ${duplicateItemIds.joinToString(", ")}"
+            )
+            return Pair(null, errors)
+        }
+
         return Pair(ShopMenu(items = items), errors)
     }
 

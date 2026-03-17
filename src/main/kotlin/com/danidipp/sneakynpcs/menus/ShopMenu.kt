@@ -10,6 +10,7 @@ import com.nisovin.magicspells.util.magicitems.MagicItem
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.NamedTextColor
 import org.bukkit.entity.Player
+import org.bukkit.event.inventory.ClickType
 import org.bukkit.event.inventory.InventoryClickEvent
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -41,6 +42,8 @@ class ShopMenu(private val items: List<ShopMenuItem>) : NPCMenu(MenuType.SHOP) {
 
     override fun onClick(gui: NPCGui, event: InventoryClickEvent) {
         val player = event.whoClicked as? Player ?: return
+        if (!isAllowedClick(event.click)) return
+
         val currentPage = pageState[player.uniqueId] ?: 0
 
         if (event.slot == pageToggleSlot && items.size > 24) {
@@ -97,6 +100,10 @@ class ShopMenu(private val items: List<ShopMenuItem>) : NPCMenu(MenuType.SHOP) {
         if (!shopItem.buyStacks) return 1
         if (!event.isShiftClick) return 1
         return shopItem.magicItem.itemStack.maxStackSize.coerceAtLeast(1)
+    }
+
+    private fun isAllowedClick(click: ClickType): Boolean {
+        return click == ClickType.LEFT || click == ClickType.SHIFT_LEFT
     }
 
     private fun getMaxPage(): Int = if (items.size > 24) 1 else 0

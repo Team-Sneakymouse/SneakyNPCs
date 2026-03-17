@@ -8,6 +8,8 @@ import org.bukkit.Bukkit
 import org.bukkit.entity.Player
 import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
+import org.bukkit.event.inventory.ClickType
+import org.bukkit.event.inventory.InventoryAction
 import org.bukkit.event.inventory.InventoryClickEvent
 import org.bukkit.event.inventory.InventoryCloseEvent
 import org.bukkit.event.inventory.InventoryDragEvent
@@ -70,6 +72,11 @@ class NPCGui(val plugin: SneakyNPCs, val npc: NPC, val player: Player) : Invento
             if (event.inventory.holder !is NPCGui) return
             val gui = event.inventory.holder as NPCGui
             event.isCancelled = true
+
+            // Double-click collect-to-cursor interactions can emit extra click events.
+            if (event.click == ClickType.DOUBLE_CLICK || event.action == InventoryAction.COLLECT_TO_CURSOR) {
+                return
+            }
 
             if (event.clickedInventory == null) {
                 gui.goBackOneLevel()

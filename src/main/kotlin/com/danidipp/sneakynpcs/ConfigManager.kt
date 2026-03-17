@@ -5,6 +5,7 @@ import com.danidipp.sneakynpcs.menus.NPCMenu
 import com.danidipp.sneakynpcs.menus.NPCQuest
 import com.danidipp.sneakynpcs.menus.NPCQuestItem
 import com.danidipp.sneakynpcs.menus.QuestMenu
+import com.danidipp.sneakynpcs.menus.SelectionMenu
 import com.danidipp.sneakynpcs.menus.ShopMenu
 import com.danidipp.sneakynpcs.menus.ShopMenuItem
 import com.danidipp.sneakynpcs.shop.ShopPrice
@@ -12,6 +13,7 @@ import com.danidipp.sneakynpcs.shop.ShopRequirement
 import com.nisovin.magicspells.MagicSpells
 import com.nisovin.magicspells.util.magicitems.MagicItems
 import org.bukkit.NamespacedKey
+import org.bukkit.configuration.ConfigurationSection
 import org.bukkit.configuration.file.YamlConfiguration
 import org.bukkit.persistence.PersistentDataType
 import java.io.File
@@ -123,14 +125,20 @@ class ConfigManager(private val plugin: SneakyNPCs) {
         val restockInterval = parseIntField(npcYaml, "restockInterval", npcId, errors) { it >= 0 }
         val restockAmount = parseIntField(npcYaml, "restockAmount", npcId, errors) { it >= 0 }
 
-        val menusYaml = npcYaml.getList("menus") ?: run {
-            errors.add("$npcId: Missing or invalid 'menus' section")
-            emptyList<Any>()
+        val rootMenuYaml = npcYaml.get("rootMenu")
+        val rootMenuMap = asObjectMap(rootMenuYaml)
+        val (rootMenu, menuErrors) = if (rootMenuMap != null) {
+            parseMenuNode(rootMenuMap, npcId, "rootMenu")
+        } else {
+            Pair(
+                null,
+                listOf(
+                    "$npcId: Missing or invalid 'rootMenu' section. " +
+                        "Expected an object with at least a 'type' key, got ${describeValue(rootMenuYaml)}. " +
+                        "Top-level keys: ${npcYaml.getKeys(false).sorted().joinToString(", ")}"
+                )
+            )
         }
-        if (menusYaml.size != 4) {
-            errors.add("$npcId: 'menus' section must contain exactly 4 entries (found ${menusYaml.size})")
-        }
-        val (menus, menuErrors) = parseMenus(menusYaml, npcId)
         errors.addAll(menuErrors)
 
         return Pair(
@@ -141,7 +149,7 @@ class ConfigManager(private val plugin: SneakyNPCs) {
                 maxGold = maxGold ?: 1,
                 restockInterval = restockInterval ?: 0,
                 restockAmount = restockAmount ?: 0,
-                menus = menus
+                rootMenu = rootMenu ?: CustomMenu("invalid_root_menu")
             ),
             errors
         )
@@ -171,61 +179,115 @@ class ConfigManager(private val plugin: SneakyNPCs) {
         return value
     }
 
-    fun parseMenus(menusYaml: List<*>, npcId: String): Pair<List<NPCMenu>, List<String>> {
-        val menus = mutableListOf<NPCMenu>()
+    private fun asObjectMap(value: Any?): Map<*, *>? = when (value) {
+        is Map<*, *> -> value
+        is ConfigurationSection -> value.getValues(false)
+        else -> null
+    }
+
+    private fun describeValue(value: Any?): String = when (value) {
+        null -> "null"
+        is ConfigurationSection -> "ConfigurationSection(path='${value.currentPath}', keys=[${value.getKeys(false).sorted().joinToString(", ")}])"
+        is Map<*, *> -> "Map(keys=[${value.keys.filterIsInstance<String>().sorted().joinToString(", ")}])"
+        is List<*> -> "List(size=${value.size})"
+        is String -> "String('$value')"
+        else -> "${value::class.simpleName}($value)"
+    }
+
+    fun parseMenuNode(menuYaml: Map<*, *>, npcId: String, path: String): Pair<NPCMenu?, List<String>> {
+        val rawType = menuYaml["type"]
+        val type = rawType as? String ?: return Pair(
+            null,
+            listOf(
+                "$npcId ($path): Missing or invalid 'type' field. " +
+                    "Expected string, got ${describeValue(rawType)}. " +
+                    "Available keys: ${menuYaml.keys.filterIsInstance<String>().sorted().joinToString(", ")}"
+            )
+        )
+        if (type.isBlank()) {
+            return Pair(
+                null,
+                listOf("$npcId ($path): Invalid 'type' field. Expected non-blank string, got empty string.")
+            )
+        }
+
+        return when (type.lowercase()) {
+            "selection" -> parseSelectionMenu(menuYaml, npcId, path)
+            "quest" -> parseQuestMenu(menuYaml, npcId, path)
+            "shop" -> parseShopMenu(menuYaml, npcId, path)
+            "custom" -> parseCustomMenu(menuYaml, npcId, path)
+            else -> Pair(null, listOf("$npcId ($path): Unknown menu type '$type'"))
+        }
+    }
+
+    fun parseSelectionMenu(menuYaml: Map<*, *>, npcId: String, path: String): Pair<SelectionMenu?, List<String>> {
         val errors = mutableListOf<String>()
+        val allowedKeys = setOf("type", "gui", "options")
+        val unknownKeys = menuYaml.keys.filterIsInstance<String>().filterNot { it in allowedKeys }
+        if (unknownKeys.isNotEmpty()) {
+            errors.add("$npcId ($path): Unknown selection menu keys ${unknownKeys.joinToString(", ")}")
+        }
 
-        for ((index, menuEntry) in menusYaml.withIndex()) {
-            if (menuEntry !is Map<*, *>) {
-                errors.add("$npcId (menu $index): Menu is not a valid map/object")
+        val guiId = menuYaml["gui"] as? String
+        if (guiId.isNullOrBlank()) {
+            errors.add("$npcId ($path): Missing or invalid 'gui' field")
+        }
+
+        val optionsYaml = menuYaml["options"] as? List<*>
+        if (optionsYaml == null) {
+            errors.add("$npcId ($path): Missing or invalid 'options' field")
+            return Pair(null, errors)
+        }
+        if (optionsYaml.size != 4) {
+            errors.add("$npcId ($path): 'options' must contain exactly 4 entries (found ${optionsYaml.size})")
+        }
+
+        val options = mutableListOf<NPCMenu>()
+        for ((index, optionEntry) in optionsYaml.withIndex()) {
+            val optionMap = asObjectMap(optionEntry)
+            if (optionMap == null) {
+                errors.add("$npcId ($path.options[$index]): Option must be a menu object, got ${describeValue(optionEntry)}")
                 continue
             }
-            val type = menuEntry["type"] as? String ?: run {
-                errors.add("$npcId (menu $index): Missing or invalid 'type' field")
-                continue
-            }
-
-            when (type.lowercase()) {
-                "quest" -> {
-                    val (questMenu, questErrors) = parseQuestMenu(menuEntry, npcId, index)
-                    if (questErrors.isNotEmpty()) errors.addAll(questErrors)
-                    else if (questMenu != null) menus.add(questMenu)
-                }
-                "shop" -> {
-                    val (shopMenu, shopErrors) = parseShopMenu(menuEntry, npcId, index)
-                    if (shopErrors.isNotEmpty()) errors.addAll(shopErrors)
-                    else if (shopMenu != null) menus.add(shopMenu)
-                }
-                "custom" -> {
-                    val (customMenu, customErrors) = parseCustomMenu(menuEntry, npcId, index)
-                    if (customErrors.isNotEmpty()) errors.addAll(customErrors)
-                    else if (customMenu != null) menus.add(customMenu)
-                }
-                else -> errors.add("$npcId (menu $index): Unknown menu type '$type'")
+            val (optionMenu, optionErrors) = parseMenuNode(optionMap, npcId, "$path.options[$index]")
+            errors.addAll(optionErrors)
+            if (optionMenu != null) {
+                options.add(optionMenu)
             }
         }
 
-        return Pair(menus, errors)
+        if (errors.isNotEmpty()) {
+            return Pair(null, errors)
+        }
+
+        return Pair(SelectionMenu(guiId = guiId!!, options = options), errors)
     }
 
-    fun parseQuestMenu(menuYaml: Map<*, *>, npcId: String, menuIndex: Int): Pair<QuestMenu?, List<String>> {
+    fun parseQuestMenu(menuYaml: Map<*, *>, npcId: String, path: String): Pair<QuestMenu?, List<String>> {
         val errors = mutableListOf<String>()
+        val allowedKeys = setOf("type", "quests")
+        val unknownKeys = menuYaml.keys.filterIsInstance<String>().filterNot { it in allowedKeys }
+        if (unknownKeys.isNotEmpty()) {
+            errors.add("$npcId ($path): Unknown quest menu keys ${unknownKeys.joinToString(", ")}")
+        }
+
         val questsYaml = menuYaml["quests"] as? List<*> ?: run {
-            errors.add("$npcId (menu $menuIndex): Missing or invalid 'quests' field")
+            errors.add("$npcId ($path): Missing or invalid 'quests' field")
             return Pair(null, errors)
         }
         if (questsYaml.isEmpty()) {
-            errors.add("$npcId (menu $menuIndex): 'quests' list is empty")
+            errors.add("$npcId ($path): 'quests' list is empty")
             return Pair(null, errors)
         }
 
         val quests = mutableListOf<NPCQuest>()
         for ((questIndex, questEntry) in questsYaml.withIndex()) {
-            if (questEntry !is Map<*, *>) {
-                errors.add("$npcId (menu $menuIndex, quest $questIndex): Quest is not a valid map/object")
+            val questMap = asObjectMap(questEntry)
+            if (questMap == null) {
+                errors.add("$npcId ($path.quests[$questIndex]): Quest must be an object, got ${describeValue(questEntry)}")
                 continue
             }
-            val (quest, questErrors) = parseQuestMenuQuest(questEntry, npcId, menuIndex, questIndex)
+            val (quest, questErrors) = parseQuestMenuQuest(questMap, npcId, "$path.quests[$questIndex]")
             if (questErrors.isNotEmpty()) {
                 errors.addAll(questErrors)
                 continue
@@ -233,31 +295,38 @@ class ConfigManager(private val plugin: SneakyNPCs) {
             if (quest != null) quests.add(quest)
         }
         if (quests.isEmpty()) {
-            errors.add("$npcId (menu $menuIndex): No valid quests found in 'quests' list")
+            errors.add("$npcId ($path): No valid quests found in 'quests' list")
             return Pair(null, errors)
         }
         return Pair(QuestMenu(quests), errors)
     }
 
-    fun parseQuestMenuQuest(questYaml: Map<*, *>, npcId: String, menuIndex: Int, questIndex: Int): Pair<NPCQuest?, List<String>> {
+    fun parseQuestMenuQuest(questYaml: Map<*, *>, npcId: String, path: String): Pair<NPCQuest?, List<String>> {
         val errors = mutableListOf<String>()
+        val allowedKeys = setOf("quest", "items")
+        val unknownKeys = questYaml.keys.filterIsInstance<String>().filterNot { it in allowedKeys }
+        if (unknownKeys.isNotEmpty()) {
+            errors.add("$npcId ($path): Unknown quest keys ${unknownKeys.joinToString(", ")}")
+        }
+
         val questId = "$npcId-" + (questYaml["quest"] as? String ?: run {
-            errors.add("$npcId (menu $menuIndex, quest $questIndex): Missing or invalid 'quest' field")
+            errors.add("$npcId ($path): Missing or invalid 'quest' field")
             return Pair(null, errors)
         })
 
         val itemsYaml = questYaml["items"] as? List<*> ?: run {
-            errors.add("$npcId (menu $menuIndex, quest $questIndex): Missing or invalid 'items' field")
+            errors.add("$npcId ($path): Missing or invalid 'items' field")
             return Pair(null, errors)
         }
 
         val items = mutableListOf<NPCQuestItem>()
         for ((itemIndex, itemEntry) in itemsYaml.withIndex()) {
-            if (itemEntry !is Map<*, *>) {
-                errors.add("$npcId (menu $menuIndex, quest $questIndex, item $itemIndex): Item is not a valid map/object")
+            val itemMap = asObjectMap(itemEntry)
+            if (itemMap == null) {
+                errors.add("$npcId ($path.items[$itemIndex]): Item must be an object, got ${describeValue(itemEntry)}")
                 continue
             }
-            val (item, itemErrors) = parseQuestMenuQuestItem(itemEntry, npcId, menuIndex, questIndex, itemIndex)
+            val (item, itemErrors) = parseQuestMenuQuestItem(itemMap, npcId, "$path.items[$itemIndex]")
             if (itemErrors.isNotEmpty()) {
                 errors.addAll(itemErrors)
                 continue
@@ -267,14 +336,20 @@ class ConfigManager(private val plugin: SneakyNPCs) {
         return Pair(NPCQuest(quest = questId, items = items), errors)
     }
 
-    fun parseQuestMenuQuestItem(itemYaml: Map<*, *>, npcId: String, menuIndex: Int, questIndex: Int, itemIndex: Int): Pair<NPCQuestItem?, List<String>> {
+    fun parseQuestMenuQuestItem(itemYaml: Map<*, *>, npcId: String, path: String): Pair<NPCQuestItem?, List<String>> {
         val errors = mutableListOf<String>()
+        val allowedKeys = setOf("item", "amount")
+        val unknownKeys = itemYaml.keys.filterIsInstance<String>().filterNot { it in allowedKeys }
+        if (unknownKeys.isNotEmpty()) {
+            errors.add("$npcId ($path): Unknown quest item keys ${unknownKeys.joinToString(", ")}")
+        }
+
         val itemId = itemYaml["item"] as? String ?: run {
-            errors.add("$npcId (menu $menuIndex, quest $questIndex, item $itemIndex): Missing or invalid 'item' field")
+            errors.add("$npcId ($path): Missing or invalid 'item' field")
             return Pair(null, errors)
         }
         val magicItem = MagicItems.getMagicItemFromString(itemId) ?: run {
-            errors.add("$npcId (menu $menuIndex, quest $questIndex, item $itemIndex): Magic item '$itemId' not found")
+            errors.add("$npcId ($path): Magic item '$itemId' not found")
             return Pair(null, errors)
         }
         val amount = when (val amountValue = itemYaml["amount"]) {
@@ -283,45 +358,46 @@ class ConfigManager(private val plugin: SneakyNPCs) {
             is Number -> amountValue.toInt()
             else -> null
         } ?: run {
-            errors.add("$npcId (menu $menuIndex, quest $questIndex, item $itemIndex): Missing or invalid 'amount' field")
+            errors.add("$npcId ($path): Missing or invalid 'amount' field")
             return Pair(null, errors)
         }
         if (amount <= 0) {
-            errors.add("$npcId (menu $menuIndex, quest $questIndex, item $itemIndex): 'amount' must be > 0")
+            errors.add("$npcId ($path): 'amount' must be > 0")
             return Pair(null, errors)
         }
 
         return Pair(NPCQuestItem(magicItem = magicItem, amount = amount), errors)
     }
 
-    fun parseShopMenu(menuYaml: Map<*, *>, npcId: String, menuIndex: Int): Pair<ShopMenu?, List<String>> {
+    fun parseShopMenu(menuYaml: Map<*, *>, npcId: String, path: String): Pair<ShopMenu?, List<String>> {
         val errors = mutableListOf<String>()
         val allowedKeys = setOf("type", "items")
         val unknownKeys = menuYaml.keys.filterIsInstance<String>().filterNot { it in allowedKeys }
         if (unknownKeys.isNotEmpty()) {
-            errors.add("$npcId (menu $menuIndex): Unknown shop menu keys ${unknownKeys.joinToString(", ")}")
+            errors.add("$npcId ($path): Unknown shop menu keys ${unknownKeys.joinToString(", ")}")
         }
 
         val itemsYaml = menuYaml["items"] as? List<*> ?: run {
-            errors.add("$npcId (menu $menuIndex): Missing or invalid 'items' field")
+            errors.add("$npcId ($path): Missing or invalid 'items' field")
             return Pair(null, errors)
         }
         if (itemsYaml.isEmpty()) {
-            errors.add("$npcId (menu $menuIndex): 'items' list is empty")
+            errors.add("$npcId ($path): 'items' list is empty")
             return Pair(null, errors)
         }
         if (itemsYaml.size > 48) {
-            errors.add("$npcId (menu $menuIndex): Shop supports up to 48 items (found ${itemsYaml.size})")
+            errors.add("$npcId ($path): Shop supports up to 48 items (found ${itemsYaml.size})")
             return Pair(null, errors)
         }
 
         val items = mutableListOf<ShopMenuItem>()
         for ((itemIndex, itemEntry) in itemsYaml.withIndex()) {
-            if (itemEntry !is Map<*, *>) {
-                errors.add("$npcId (menu $menuIndex, item $itemIndex): Item is not a valid map/object")
+            val itemMap = asObjectMap(itemEntry)
+            if (itemMap == null) {
+                errors.add("$npcId ($path.items[$itemIndex]): Item must be an object, got ${describeValue(itemEntry)}")
                 continue
             }
-            val (item, itemErrors) = parseShopMenuItem(itemEntry, npcId, menuIndex, itemIndex)
+            val (item, itemErrors) = parseShopMenuItem(itemMap, npcId, "$path.items[$itemIndex]")
             if (itemErrors.isNotEmpty()) {
                 errors.addAll(itemErrors)
                 continue
@@ -330,28 +406,28 @@ class ConfigManager(private val plugin: SneakyNPCs) {
         }
 
         if (items.isEmpty()) {
-            errors.add("$npcId (menu $menuIndex): No valid shop items found")
+            errors.add("$npcId ($path): No valid shop items found")
             return Pair(null, errors)
         }
 
         return Pair(ShopMenu(items = items), errors)
     }
 
-    fun parseShopMenuItem(itemYaml: Map<*, *>, npcId: String, menuIndex: Int, itemIndex: Int): Pair<ShopMenuItem?, List<String>> {
+    fun parseShopMenuItem(itemYaml: Map<*, *>, npcId: String, path: String): Pair<ShopMenuItem?, List<String>> {
         val errors = mutableListOf<String>()
         val allowedKeys = setOf("item", "buyStacks", "requirements")
         val unknownKeys = itemYaml.keys.filterIsInstance<String>().filterNot { it in allowedKeys }
         if (unknownKeys.isNotEmpty()) {
-            errors.add("$npcId (menu $menuIndex, item $itemIndex): Unknown item keys ${unknownKeys.joinToString(", ")}")
+            errors.add("$npcId ($path): Unknown item keys ${unknownKeys.joinToString(", ")}")
         }
 
         val itemId = itemYaml["item"] as? String ?: run {
-            errors.add("$npcId (menu $menuIndex, item $itemIndex): Missing or invalid 'item' field")
+            errors.add("$npcId ($path): Missing or invalid 'item' field")
             return Pair(null, errors)
         }
 
         val magicItem = MagicItems.getMagicItemFromString(itemId) ?: run {
-            errors.add("$npcId (menu $menuIndex, item $itemIndex): Magic item '$itemId' not found")
+            errors.add("$npcId ($path): Magic item '$itemId' not found")
             return Pair(null, errors)
         }
 
@@ -359,7 +435,7 @@ class ConfigManager(private val plugin: SneakyNPCs) {
             null -> false
             is Boolean -> raw
             else -> {
-                errors.add("$npcId (menu $menuIndex, item $itemIndex): 'buyStacks' must be a boolean")
+                errors.add("$npcId ($path): 'buyStacks' must be a boolean")
                 false
             }
         }
@@ -368,35 +444,36 @@ class ConfigManager(private val plugin: SneakyNPCs) {
         val requirementsYaml = itemYaml["requirements"]
         if (requirementsYaml != null) {
             if (requirementsYaml !is List<*>) {
-                errors.add("$npcId (menu $menuIndex, item $itemIndex): 'requirements' must be a list")
+                errors.add("$npcId ($path): 'requirements' must be a list")
             } else {
                 for ((reqIndex, reqEntry) in requirementsYaml.withIndex()) {
-                    if (reqEntry !is Map<*, *>) {
-                        errors.add("$npcId (menu $menuIndex, item $itemIndex, requirement $reqIndex): Requirement must be a map")
+                    val reqMap = asObjectMap(reqEntry)
+                    if (reqMap == null) {
+                        errors.add("$npcId ($path.requirements[$reqIndex]): Requirement must be an object, got ${describeValue(reqEntry)}")
                         continue
                     }
                     val reqAllowedKeys = setOf("variable", "min")
-                    val reqUnknown = reqEntry.keys.filterIsInstance<String>().filterNot { it in reqAllowedKeys }
+                    val reqUnknown = reqMap.keys.filterIsInstance<String>().filterNot { it in reqAllowedKeys }
                     if (reqUnknown.isNotEmpty()) {
-                        errors.add("$npcId (menu $menuIndex, item $itemIndex, requirement $reqIndex): Unknown requirement keys ${reqUnknown.joinToString(", ")}")
+                        errors.add("$npcId ($path.requirements[$reqIndex]): Unknown requirement keys ${reqUnknown.joinToString(", ")}")
                     }
-                    val variableName = reqEntry["variable"] as? String
+                    val variableName = reqMap["variable"] as? String
                     if (variableName.isNullOrBlank()) {
-                        errors.add("$npcId (menu $menuIndex, item $itemIndex, requirement $reqIndex): Missing or invalid 'variable'")
+                        errors.add("$npcId ($path.requirements[$reqIndex]): Missing or invalid 'variable'")
                         continue
                     }
                     val variable = MagicSpells.getVariableManager().getVariable(variableName) ?: run {
-                        errors.add("$npcId (menu $menuIndex, item $itemIndex, requirement $reqIndex): Unknown MagicVariable '$variableName'")
+                        errors.add("$npcId ($path.requirements[$reqIndex]): Unknown MagicVariable '$variableName'")
                         continue
                     }
-                    val min = when (val minRaw = reqEntry["min"]) {
+                    val min = when (val minRaw = reqMap["min"]) {
                         is Int -> minRaw
                         is String -> minRaw.toIntOrNull()
                         is Number -> minRaw.toInt()
                         else -> null
                     }
                     if (min == null) {
-                        errors.add("$npcId (menu $menuIndex, item $itemIndex, requirement $reqIndex): Missing or invalid 'min'")
+                        errors.add("$npcId ($path.requirements[$reqIndex]): Missing or invalid 'min'")
                         continue
                     }
                     requirements.add(ShopRequirement(variable, min))
@@ -405,29 +482,29 @@ class ConfigManager(private val plugin: SneakyNPCs) {
         }
 
         val itemMeta = magicItem.itemStack.itemMeta ?: run {
-            errors.add("$npcId (menu $menuIndex, item $itemIndex): Magic item '$itemId' has no item meta for pricing")
+            errors.add("$npcId ($path): Magic item '$itemId' has no item meta for pricing")
             return Pair(null, errors)
         }
         val pdc = itemMeta.persistentDataContainer
         val currencyId = pdc.get(storeCurrencyKey, PersistentDataType.STRING)?.takeIf { it.isNotBlank() } ?: run {
-            errors.add("$npcId (menu $menuIndex, item $itemIndex): Missing price currency PDC '$storeCurrencyKey' on '$itemId'")
+            errors.add("$npcId ($path): Missing price currency PDC '$storeCurrencyKey' on '$itemId'")
             return Pair(null, errors)
         }
         if (!plugin.currencyGraphService.hasCurrency(currencyId)) {
-            errors.add("$npcId (menu $menuIndex, item $itemIndex): Unknown currency '$currencyId' in item '$itemId'")
+            errors.add("$npcId ($path): Unknown currency '$currencyId' in item '$itemId'")
             return Pair(null, errors)
         }
 
         val amountRaw = pdc.get(storeAmountKey, PersistentDataType.STRING) ?: run {
-            errors.add("$npcId (menu $menuIndex, item $itemIndex): Missing price amount PDC '$storeAmountKey' on '$itemId'")
+            errors.add("$npcId ($path): Missing price amount PDC '$storeAmountKey' on '$itemId'")
             return Pair(null, errors)
         }
         val amount = amountRaw.toIntOrNull() ?: run {
-            errors.add("$npcId (menu $menuIndex, item $itemIndex): Invalid price amount '$amountRaw' on '$itemId' (expected integer string)")
+            errors.add("$npcId ($path): Invalid price amount '$amountRaw' on '$itemId' (expected integer string)")
             return Pair(null, errors)
         }
         if (amount <= 0) {
-            errors.add("$npcId (menu $menuIndex, item $itemIndex): Price amount must be > 0 (got $amount)")
+            errors.add("$npcId ($path): Price amount must be > 0 (got $amount)")
             return Pair(null, errors)
         }
 
@@ -443,14 +520,20 @@ class ConfigManager(private val plugin: SneakyNPCs) {
         )
     }
 
-    fun parseCustomMenu(menuYaml: Map<*, *>, npcId: String, menuIndex: Int): Pair<CustomMenu?, List<String>> {
+    fun parseCustomMenu(menuYaml: Map<*, *>, npcId: String, path: String): Pair<CustomMenu?, List<String>> {
         val errors = mutableListOf<String>()
+        val allowedKeys = setOf("type", "gui")
+        val unknownKeys = menuYaml.keys.filterIsInstance<String>().filterNot { it in allowedKeys }
+        if (unknownKeys.isNotEmpty()) {
+            errors.add("$npcId ($path): Unknown custom menu keys ${unknownKeys.joinToString(", ")}")
+        }
+
         val guiId = menuYaml["gui"] as? String ?: run {
-            errors.add("$npcId (menu $menuIndex): Missing or invalid 'gui' field")
+            errors.add("$npcId ($path): Missing or invalid 'gui' field")
             return Pair(null, errors)
         }
         if (guiId.isBlank()) {
-            errors.add("$npcId (menu $menuIndex): 'gui' cannot be blank")
+            errors.add("$npcId ($path): 'gui' cannot be blank")
             return Pair(null, errors)
         }
         return Pair(CustomMenu(guiId), errors)

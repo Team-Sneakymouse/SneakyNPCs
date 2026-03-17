@@ -51,7 +51,7 @@ object QuestCommand {
                                     .append(Component.text(player.name, NamedTextColor.GOLD))
                                     .append(Component.text(":", NamedTextColor.GRAY))
 
-                                val questMenus = npc.menus.filterIsInstance<QuestMenu>()
+                                val questMenus = npc.allMenus.filterIsInstance<QuestMenu>()
                                 if (questMenus.isEmpty()) {
                                     ctx.source.sender.sendMessage(plugin.prefix.append(Component.text("This NPC does not have any quests.", NamedTextColor.RED)))
                                     return@thenAccept
@@ -94,7 +94,7 @@ object QuestCommand {
                             .suggests { ctx, builder ->
                                 val npcId = try { ctx.getArgument("npc", String::class.java) } catch (e: Exception) { null }
                                 val npc = npcId?.let { plugin.npcs[it] }
-                                npc?.menus?.filterIsInstance<QuestMenu>()?.forEach { menu ->
+                                npc?.allMenus?.filterIsInstance<QuestMenu>()?.forEach { menu ->
                                     menu.quests.map { it.quest.removePrefix("${npc.id}-") }
                                         .filter { it.startsWith(builder.remaining, ignoreCase = true) }
                                         .forEach { builder.suggest(it) }
@@ -121,7 +121,7 @@ object QuestCommand {
                             .suggests { ctx, builder ->
                                 val npcId = try { ctx.getArgument("npc", String::class.java) } catch (e: Exception) { null }
                                 val npc = npcId?.let { plugin.npcs[it] }
-                                npc?.menus?.filterIsInstance<QuestMenu>()?.forEach { menu ->
+                                npc?.allMenus?.filterIsInstance<QuestMenu>()?.forEach { menu ->
                                     menu.quests.map { it.quest.removePrefix("${npc.id}-") }
                                         .filter { it.startsWith(builder.remaining, ignoreCase = true) }
                                         .forEach { builder.suggest(it) }
@@ -148,7 +148,7 @@ object QuestCommand {
         }
 
         // Verify quest exists
-        val questExists = npc.menus.filterIsInstance<QuestMenu>().any { menu ->
+        val questExists = npc.allMenus.filterIsInstance<QuestMenu>().any { menu ->
             menu.quests.any { it.quest == fullQuestId }
         }
 

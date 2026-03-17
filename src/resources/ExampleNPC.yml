@@ -3,28 +3,31 @@ reputation: CopperGuild # not implemented
 maxGold: 1000
 restockInterval: 3600
 restockAmount: 100
-menus: # requires exactly 4 entries
-  - type: quest
-    quests:
-      - quest: learning_to_jack_1
-        items:
+rootMenu:
+  type: selection
+  gui: main
+  options: # exactly 4 entries
+    - type: quest
+      quests:
+        - quest: learning_to_jack_1
+          items:
+            - item: item-wood-spruce
+              amount: 99
+        - quest: learning_to_jack_2
+          items:
+            - item: item-wood-oak
+              amount: 99
+            - item: item-wood-birch
+              amount: 99
+    - type: shop
+      items:
         - item: item-wood-spruce
-          amount: 99
-      - quest: learning_to_jack_2
-        items:
+          buyStacks: true
+          requirements:
+            - variable: lumberjack_level
+              min: 1
         - item: item-wood-oak
-          amount: 99
-        - item: item-wood-birch
-          amount: 99
-  - type: shop
-    items:
-      - item: item-wood-spruce
-        buyStacks: true
-        requirements:
-          - variable: lumberjack_level
-            min: 1
-      - item: item-wood-oak
-  - type: custom
-    gui: lumberjack_training
-  - type: custom
-    gui: borrow_horn
+    - type: custom
+      gui: lumberjack_training
+    - type: custom
+      gui: borrow_horn

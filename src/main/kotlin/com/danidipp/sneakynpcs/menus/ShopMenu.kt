@@ -34,7 +34,7 @@ class ShopMenu(private val items: List<ShopMenuItem>) : NPCMenu(MenuType.SHOP) {
     )
     private val pageToggleSlot = 40
 
-    override fun open(gui: NPCGui, player: Player, playerData: PlayerData) {
+    override fun open(gui: NPCGui, player: Player, playerData: PlayerData?) {
         val page = pageState[player.uniqueId] ?: 0
         render(gui, player, page.coerceIn(0, getMaxPage()))
     }

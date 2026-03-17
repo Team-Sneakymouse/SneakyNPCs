@@ -19,7 +19,7 @@ class Placeholders : PlaceholderExpansion() {
             val completedQuests = plugin.persistenceManager.dataCache[player.uniqueId]?.getCompletedQuests(npcName)
             if (completedQuests == null) return "No data"
             val npc = plugin.configManager.configs[npcName] ?: return "NPC not found"
-            val questMenu = npc.menus.firstOrNull { it is QuestMenu } as? QuestMenu ?: return "No quest menu"
+            val questMenu = npc.allMenus.firstOrNull { it is QuestMenu } as? QuestMenu ?: return "No quest menu"
             val quest = questMenu.quests.firstOrNull { !completedQuests.contains(it.quest) } ?: return "All quests completed"
             return quest.quest.removePrefix("$npcName-")
         }

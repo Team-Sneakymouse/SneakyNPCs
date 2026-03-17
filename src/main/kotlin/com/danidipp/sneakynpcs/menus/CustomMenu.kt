@@ -7,7 +7,7 @@ import org.bukkit.event.inventory.InventoryClickEvent
 
 class CustomMenu(val guiId: String) : NPCMenu(MenuType.CUSTOM) {
 
-    override fun open(gui: NPCGui, player: Player, playerData: PlayerData) {
+    override fun open(gui: NPCGui, player: Player, playerData: PlayerData?) {
         val inv = gui.inventory
         val npc = gui.npc
         inv.clear()

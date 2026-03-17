@@ -12,11 +12,12 @@ import org.bukkit.entity.Player
 import org.bukkit.event.inventory.InventoryClickEvent
 import org.bukkit.inventory.ItemStack
 
-enum class MenuType { HOME, QUEST, SHOP, CUSTOM}
+enum class MenuType { SELECTION, QUEST, SHOP, CUSTOM}
 sealed class NPCMenu(val type: MenuType) {
 
-    abstract fun open(gui: NPCGui, player: Player, playerData: PlayerData)
+    abstract fun open(gui: NPCGui, player: Player, playerData: PlayerData?)
     abstract fun onClick(gui: NPCGui, event: InventoryClickEvent)
+    open fun childMenus(): List<NPCMenu> = emptyList()
 
     fun makeItem(key: String, data: Any? = null) = ItemStack(Material.BRICKS).apply {
 //        setData(DataComponentTypes.HIDE_TOOLTIP) // TODO: uncomment for production

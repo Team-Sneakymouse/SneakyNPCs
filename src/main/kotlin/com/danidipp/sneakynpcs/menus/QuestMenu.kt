@@ -22,11 +22,18 @@ data class NPCQuestItem(
 class QuestMenu(val quests: List<NPCQuest>) : NPCMenu(MenuType.QUEST) {
     val plugin = SneakyNPCs.getInstance()
 
-    override fun open(gui: NPCGui, player: Player, playerData: PlayerData) {
+    override fun open(gui: NPCGui, player: Player, playerData: PlayerData?) {
+        val resolvedData = playerData ?: plugin.persistenceManager.dataCache[player.uniqueId]
+        if (resolvedData == null) {
+            plugin.logger.warning("No player data found for ${player.name} (${player.uniqueId}) when opening quest menu")
+            player.sendMessage(plugin.prefix.append(Component.text("Failed to fetch your data. Please tell Dani.", NamedTextColor.RED)))
+            return
+        }
+
         val inv = gui.inventory
         val npc = gui.npc
 
-        val completedQuests = playerData.getCompletedQuests(npc.id)
+        val completedQuests = resolvedData.getCompletedQuests(npc.id)
         val currentQuest = quests.firstOrNull{ !completedQuests.contains(it.quest) }
         if (currentQuest == null) {
             plugin.logger.severe("Failed to find active quest")

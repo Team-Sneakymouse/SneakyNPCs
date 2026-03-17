@@ -118,6 +118,13 @@ class ConfigManager(private val plugin: SneakyNPCs) {
     fun parseNPC(npcId: String, npcYaml: YamlConfiguration): Pair<NPC, List<String>> {
         val errors = mutableListOf<String>()
 
+        val style = npcYaml.getString("style")?.trim().orEmpty()
+        if (style.isBlank()) {
+            errors.add("$npcId: Missing or invalid 'style' field")
+        } else if (style != style.lowercase()) {
+            errors.add("$npcId: Invalid 'style' value '$style'. Expected lowercase.")
+        }
+
         val friendship = npcYaml.getBoolean("friendship", false)
         val reputation = npcYaml.getString("reputation", "") ?: ""
 
@@ -144,6 +151,7 @@ class ConfigManager(private val plugin: SneakyNPCs) {
         return Pair(
             NPC(
                 id = npcId,
+                style = style.ifBlank { "invalid_style" },
                 friendship = friendship,
                 reputation = reputation,
                 maxGold = maxGold ?: 1,

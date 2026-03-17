@@ -4,6 +4,7 @@ import com.danidipp.sneakynpcs.menus.NPCMenu
 
 data class NPC (
     val id: String,
+    val style: String,
     val friendship: Boolean,
     val reputation: String,
     val maxGold: Int,
@@ -24,4 +25,10 @@ data class NPC (
         visit(root)
         return flattened
     }
+
+    val guiModelKey: String
+        get() = "lom:npcs/gui-$style"
+
+    val questModelKey: String
+        get() = "lom:npcs/quest-$style"
 }

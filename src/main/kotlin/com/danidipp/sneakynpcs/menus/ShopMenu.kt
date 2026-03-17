@@ -78,7 +78,7 @@ class ShopMenu(private val items: List<ShopMenuItem>) : NPCMenu(MenuType.SHOP) {
         val inv = gui.inventory
         val npc = gui.npc
         inv.clear()
-        inv.setItem(0, makeItem("lom:npcs/gui-${npc.id.lowercase()}", "alt"))
+        inv.setItem(0, makeItem(npc.guiModelKey, "alt"))
         inv.setItem(53, makeItem("lom:npcs/tradewindow"))
 
         val pageStart = page * 24

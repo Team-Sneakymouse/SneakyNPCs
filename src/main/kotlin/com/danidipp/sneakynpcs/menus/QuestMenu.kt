@@ -41,8 +41,8 @@ class QuestMenu(val quests: List<NPCQuest>) : NPCMenu(MenuType.QUEST) {
         }
 
         inv.clear()
-        inv.setItem(0, makeItem("lom:npcs/gui-${npc.id.lowercase()}", "alt"))
-        inv.setItem(1, makeItem("lom:npcs/quest-${npc.id.lowercase()}", currentQuest.quest))
+        inv.setItem(0, makeItem(npc.guiModelKey, "alt"))
+        inv.setItem(1, makeItem(npc.questModelKey, currentQuest.quest))
         inv.setItem(53, makeItem("lom:npcs/questbox", if (questCompletable(player, currentQuest)) "complete" else "incomplete"))
 
         val items = currentQuest.items.toMutableList()

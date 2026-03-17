@@ -14,7 +14,7 @@ class SelectionMenu(
         val inv = gui.inventory
         val npc = gui.npc
         inv.clear()
-        inv.setItem(0, makeItem("lom:npcs/gui-${npc.id.lowercase()}", guiId))
+        inv.setItem(0, makeItem(npc.guiModelKey, guiId))
         if (npc.friendship) inv.setItem(1, makeItem("lom:npcs/friendship", 0))
         val rep = 0 // TODO: Get player reputation for npc's guild
         if (rep >= 10) inv.setItem(51, makeItem("lom:npcs/progressbar-reputation", rep))

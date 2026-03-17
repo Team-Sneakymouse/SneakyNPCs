@@ -1,5 +1,8 @@
 friendship: false # not implemented
-reputation: CopperGuild
+reputation: CopperGuild # not implemented
+maxGold: 1000
+restockInterval: 3600
+restockAmount: 100
 menus: # requires exactly 4 entries
   - type: quest
     quests:
@@ -14,11 +17,13 @@ menus: # requires exactly 4 entries
         - item: item-wood-birch
           amount: 99
   - type: shop
-    max_gold: 500
-    restock_time: 3600
     items:
       - item: item-wood-spruce
         buyStacks: true
+        requirements:
+          - variable: lumberjack_level
+            min: 1
+      - item: item-wood-oak
   - type: custom
     gui: lumberjack_training
   - type: custom

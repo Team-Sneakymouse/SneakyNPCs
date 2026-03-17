@@ -1,0 +1,26 @@
+currencies:
+  penny:
+    item: money-penny
+    variable: bankPenny
+    exchangeTo: silver
+    rate: 50
+  silver:
+    item: money-silver
+    variable: bankSilver
+    exchangeTo: gold
+    rate: 50
+  gold:
+    item: money-gold
+    variable: bankGold
+    exchangeTo: diamond
+    rate: 50
+  diamond:
+    variable: bankDiamond
+    exchangeTo: mythril
+    rate: 50
+  mythril:
+    variable: bankMythril
+  medals:
+    variable: leaderboardMedals
+  dragoncoins:
+    variable: bankDragonCoin

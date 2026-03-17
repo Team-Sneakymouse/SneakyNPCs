@@ -11,7 +11,7 @@ class CustomMenu(val guiId: String) : NPCMenu(MenuType.CUSTOM) {
         val inv = gui.inventory
         val npc = gui.npc
         inv.clear()
-        inv.setItem(0, makeItem("lom:npcs/gui-${npc.id.lowercase()}", guiId)) // TODO: Custom GUI
+        inv.setItem(0, makeItem("lom:npcs/gui-${npc.id.lowercase()}", guiId))
     }
 
     override fun onClick(gui: NPCGui, event: InventoryClickEvent) {

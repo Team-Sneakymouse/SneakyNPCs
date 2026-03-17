@@ -1,14 +1,20 @@
 package com.danidipp.sneakynpcs
 
+import com.danidipp.sneakynpcs.shop.BalanceService
+import com.danidipp.sneakynpcs.shop.CurrencyGraphService
+import com.danidipp.sneakynpcs.shop.RequirementService
+import com.danidipp.sneakynpcs.shop.ShopTransactionService
+import com.nisovin.magicspells.MagicSpells
+import com.nisovin.magicspells.events.MagicSpellsLoadedEvent
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.JoinConfiguration
 import net.kyori.adventure.text.format.NamedTextColor
 import org.bukkit.Bukkit
+import org.bukkit.event.EventHandler
+import org.bukkit.event.Listener
 import org.bukkit.plugin.java.JavaPlugin
-import java.util.concurrent.ExecutorService
-import java.util.concurrent.Executors
-import java.util.logging.Level
+import java.util.concurrent.atomic.AtomicBoolean
 
 class SneakyNPCs : JavaPlugin() {
     var prefix = Component.join(JoinConfiguration.noSeparators(),
@@ -19,7 +25,12 @@ class SneakyNPCs : JavaPlugin() {
     )
     lateinit var configManager: ConfigManager
     lateinit var persistenceManager: PersistenceManager
+    lateinit var currencyGraphService: CurrencyGraphService
+    lateinit var balanceService: BalanceService
+    lateinit var requirementService: RequirementService
+    lateinit var shopTransactionService: ShopTransactionService
     val npcs = mutableMapOf<String, NPC>()
+    private val configReloadInProgress = AtomicBoolean(false)
 
     override fun onLoad() {
         instance = this
@@ -33,6 +44,10 @@ class SneakyNPCs : JavaPlugin() {
         }
         configManager = ConfigManager(this)
         persistenceManager = PersistenceManager(this)
+        currencyGraphService = CurrencyGraphService(this)
+        balanceService = BalanceService()
+        requirementService = RequirementService()
+        shopTransactionService = ShopTransactionService(currencyGraphService, balanceService, requirementService)
 
         //commands
         @field:Suppress("UnstableApiUsage")
@@ -42,24 +57,94 @@ class SneakyNPCs : JavaPlugin() {
         //events
         Bukkit.getServer().pluginManager.registerEvents(NPCGui.GuiListener, this)
         Bukkit.getServer().pluginManager.registerEvents(persistenceManager, this)
+        Bukkit.getServer().pluginManager.registerEvents(MagicSpellsListener(this), this)
 
-        logger.info("Plugin initialized. Asynchronously loading configs")
-        configManager.loadConfigs().handle { (configs, errors), throwable ->
-            if(throwable != null) {
-                logger.log(Level.SEVERE, "Failed to load NPC configurations", throwable)
-                return@handle
-            }
-            if (errors.isNotEmpty()) {
-                logger.severe("Encountered ${errors.size} errors loading NPC configurations. Check previous logs for details.")
-            }
-            npcs.clear()
-            npcs.putAll(configs)
-            logger.info("Loaded ${npcs.size} NPC configurations")
+        logger.info("Plugin initialized. Waiting for MagicSpellsLoadedEvent before loading NPC configs.")
+
+        // MagicSpells is a hard dependency and may already be fully loaded before this plugin enables.
+        if (MagicSpells.isLoaded()) {
+            logger.info("MagicSpells is already loaded. Triggering NPC config load immediately.")
+            reloadNpcConfigs("onEnable")
         }
     }
     override fun onDisable() {
         logger.warning("Disabling SneakyNPCs")
-        persistenceManager.onDisable()
+        if (this::persistenceManager.isInitialized) {
+            persistenceManager.onDisable()
+        }
+    }
+
+    fun reloadNpcConfigs(trigger: String, callback: ((ConfigReloadResult) -> Unit)? = null) {
+        if (!configReloadInProgress.compareAndSet(false, true)) {
+            val result = ConfigReloadResult(
+                loadedCount = npcs.size,
+                keptCount = 0,
+                errors = emptyList(),
+                throwable = IllegalStateException("Config reload already in progress.")
+            )
+            callback?.invoke(result)
+            return
+        }
+
+        logger.info("Reloading NPC configs (trigger=$trigger)")
+        configManager.loadConfigs().handle { (configs, errors), throwable ->
+            try {
+                if (throwable != null) {
+                    logger.severe("Failed to reload NPC configs (trigger=$trigger): ${throwable.message}")
+                    callback?.invoke(
+                        ConfigReloadResult(
+                            loadedCount = npcs.size,
+                            keptCount = 0,
+                            errors = emptyList(),
+                            throwable = throwable
+                        )
+                    )
+                    return@handle
+                }
+
+                val loadedCount = configs.size
+                for (error in errors) {
+                    configs[error.npcId] = npcs[error.npcId] ?: continue
+                }
+
+                npcs.clear()
+                npcs.putAll(configs)
+                val keptCount = npcs.size - loadedCount
+
+                if (errors.isNotEmpty()) {
+                    logger.warning("Encountered ${errors.size} config error groups while reloading (trigger=$trigger).")
+                }
+                logger.info(
+                    "Reload complete (trigger=$trigger): loaded=$loadedCount, kept=$keptCount, total=${npcs.size}"
+                )
+
+                callback?.invoke(
+                    ConfigReloadResult(
+                        loadedCount = loadedCount,
+                        keptCount = keptCount,
+                        errors = errors,
+                        throwable = null
+                    )
+                )
+            } finally {
+                configReloadInProgress.set(false)
+            }
+        }
+    }
+
+    data class ConfigReloadResult(
+        val loadedCount: Int,
+        val keptCount: Int,
+        val errors: List<ConfigErrorInfo>,
+        val throwable: Throwable?,
+    )
+
+    private class MagicSpellsListener(private val plugin: SneakyNPCs) : Listener {
+        @EventHandler
+        fun onMagicSpellsLoaded(event: MagicSpellsLoadedEvent) {
+            if (event.plugin.name != "MagicSpells") return
+            plugin.reloadNpcConfigs("MagicSpellsLoadedEvent")
+        }
     }
 
     companion object {

@@ -2,6 +2,7 @@ package com.danidipp.sneakynpcs
 
 import com.danidipp.sneakynpcs.shop.BalanceService
 import com.danidipp.sneakynpcs.shop.CurrencyGraphService
+import com.danidipp.sneakynpcs.shop.NpcWalletService
 import com.danidipp.sneakynpcs.shop.RequirementService
 import com.danidipp.sneakynpcs.shop.ShopTransactionService
 import com.nisovin.magicspells.MagicSpells
@@ -28,6 +29,7 @@ class SneakyNPCs : JavaPlugin() {
     lateinit var currencyGraphService: CurrencyGraphService
     lateinit var balanceService: BalanceService
     lateinit var requirementService: RequirementService
+    lateinit var npcWalletService: NpcWalletService
     lateinit var shopTransactionService: ShopTransactionService
     val npcs = mutableMapOf<String, NPC>()
     private val configReloadInProgress = AtomicBoolean(false)
@@ -47,7 +49,8 @@ class SneakyNPCs : JavaPlugin() {
         currencyGraphService = CurrencyGraphService(this)
         balanceService = BalanceService()
         requirementService = RequirementService()
-        shopTransactionService = ShopTransactionService(currencyGraphService, balanceService, requirementService)
+        npcWalletService = NpcWalletService(currencyGraphService)
+        shopTransactionService = ShopTransactionService(currencyGraphService, balanceService, requirementService, npcWalletService)
 
         //commands
         @field:Suppress("UnstableApiUsage")
@@ -76,35 +79,59 @@ class SneakyNPCs : JavaPlugin() {
 
     fun reloadNpcConfigs(trigger: String, callback: ((ConfigReloadResult) -> Unit)? = null) {
         if (!configReloadInProgress.compareAndSet(false, true)) {
-            val result = ConfigReloadResult(
+            deliverReloadResult(
+                ConfigReloadResult(
                 loadedCount = npcs.size,
                 keptCount = 0,
                 errors = emptyList(),
                 throwable = IllegalStateException("Config reload already in progress.")
+                ),
+                callback
             )
-            callback?.invoke(result)
             return
         }
 
         logger.info("Reloading NPC configs (trigger=$trigger)")
-        configManager.loadConfigs().handle { (configs, errors), throwable ->
+        configManager.loadConfigs().handle { loadResult, throwable ->
             try {
-                if (throwable != null) {
-                    logger.severe("Failed to reload NPC configs (trigger=$trigger): ${throwable.message}")
-                    callback?.invoke(
+                val resolvedThrowable = unwrapAsyncThrowable(throwable)
+                if (resolvedThrowable != null) {
+                    if (resolvedThrowable is ConfigValidationException) {
+                        logger.warning(
+                            "Reload failed validation (trigger=$trigger): ${resolvedThrowable.validationErrors.size} error groups"
+                        )
+                        deliverReloadResult(
+                            ConfigReloadResult(
+                                loadedCount = 0,
+                                keptCount = npcs.size,
+                                errors = resolvedThrowable.validationErrors,
+                                throwable = null
+                            ),
+                            callback
+                        )
+                        return@handle
+                    }
+
+                    logger.severe("Failed to reload NPC configs (trigger=$trigger): ${resolvedThrowable.message}")
+                    deliverReloadResult(
                         ConfigReloadResult(
                             loadedCount = npcs.size,
                             keptCount = 0,
                             errors = emptyList(),
-                            throwable = throwable
-                        )
+                            throwable = resolvedThrowable
+                        ),
+                        callback
                     )
                     return@handle
                 }
 
+                val (configs, errors) = loadResult ?: Pair(
+                    mutableMapOf<String, NPC>(),
+                    emptyList<ConfigErrorInfo>()
+                )
                 val loadedCount = configs.size
                 for (error in errors) {
-                    configs[error.npcId] = npcs[error.npcId] ?: continue
+                    configs[error.sourceId] = npcs[error.sourceId] ?: continue
                 }
 
                 npcs.clear()
@@ -118,18 +145,34 @@ class SneakyNPCs : JavaPlugin() {
                     "Reload complete (trigger=$trigger): loaded=$loadedCount, kept=$keptCount, total=${npcs.size}"
                 )
 
-                callback?.invoke(
+                deliverReloadResult(
                     ConfigReloadResult(
                         loadedCount = loadedCount,
                         keptCount = keptCount,
                         errors = errors,
                         throwable = null
-                    )
+                    ),
+                    callback
                 )
             } finally {
                 configReloadInProgress.set(false)
             }
         }
+    }
+
+    private fun deliverReloadResult(
+        result: ConfigReloadResult,
+        callback: ((ConfigReloadResult) -> Unit)?,
+    ) {
+        if (callback == null) return
+        if (Bukkit.isPrimaryThread()) {
+            callback(result)
+            return
+        }
+
+        server.scheduler.runTask(this, Runnable {
+            callback(result)
+        })
     }
 
     data class ConfigReloadResult(

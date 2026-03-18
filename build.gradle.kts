@@ -18,6 +18,11 @@ dependencies {
     compileOnly("io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT")
  	compileOnly("me.clip:placeholderapi:2.11.5")
 	compileOnly(files("libs/MagicSpells-4.0-Beta-13.jar"))
+	testImplementation(kotlin("test"))
+	testCompileOnly("io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT")
+	testCompileOnly(files("libs/MagicSpells-4.0-Beta-13.jar"))
+	testRuntimeOnly("io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT")
+	testRuntimeOnly(files("libs/MagicSpells-4.0-Beta-13.jar"))
 }
 
 tasks.jar {
@@ -26,6 +31,10 @@ tasks.jar {
 	}
 
 	from(configurations.runtimeClasspath.get().map { if (it.isDirectory) it else zipTree(it) })
+}
+
+tasks.test {
+	useJUnitPlatform()
 }
 
 configure<JavaPluginExtension> {

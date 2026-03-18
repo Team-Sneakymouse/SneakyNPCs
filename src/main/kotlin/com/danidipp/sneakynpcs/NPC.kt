@@ -7,9 +7,7 @@ data class NPC (
     val style: String,
     val friendship: Boolean,
     val reputation: String,
-    val maxGold: Int,
-    val restockInterval: Int,
-    val restockAmount: Int,
+    val wallet: NpcWalletConfig,
     val rootMenu: NPCMenu,
 ) {
     val allMenus: List<NPCMenu> = flattenMenuTree(rootMenu)

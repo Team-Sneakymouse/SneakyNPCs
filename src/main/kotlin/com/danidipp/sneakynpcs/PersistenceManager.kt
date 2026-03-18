@@ -14,7 +14,6 @@ import java.io.File
 import java.io.IOException
 import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
-import java.nio.file.Path
 import java.nio.file.StandardCopyOption
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
@@ -25,6 +24,7 @@ class PlayerData(
     val uuid: UUID,
     private val completedQuests: MutableSet<String>,
     private val reputation: MutableMap<String, Int>,
+    private val npcWallets: MutableMap<String, NpcWalletState>,
 ) {
     @Volatile
     var isDirty = false
@@ -62,12 +62,79 @@ class PlayerData(
     }
 
     @Synchronized
+    fun getReputationEntries(): Map<String, Int> = reputation.toMap()
+
+    @Synchronized
+    fun getNpcWalletState(npcId: String): NpcWalletState? {
+        return npcWallets[npcId]?.deepCopy()
+    }
+
+    @Synchronized
+    fun setNpcWalletState(npcId: String, state: NpcWalletState) {
+        val normalized = state.deepCopy()
+        if (npcWallets[npcId] != normalized) {
+            npcWallets[npcId] = normalized
+            isDirty = true
+        }
+    }
+
+    @Synchronized
+    fun getNpcWalletCount(): Int = npcWallets.size
+
+    @Synchronized
     fun toYaml(): YamlConfiguration {
         val config = YamlConfiguration()
         config.set("completedQuests", completedQuests.toList())
-        config.set("reputation", reputation)
+        for ((guildId, amount) in reputation) {
+            config.set("reputation.$guildId", amount)
+        }
+        for ((npcId, walletState) in npcWallets) {
+            config.set("npcWallets.$npcId.nativeCurrency", walletState.nativeCurrencyId)
+            config.set("npcWallets.$npcId.lastRestockAt", walletState.lastRestockAtEpochMillis)
+            for ((currencyId, amount) in walletState.balances) {
+                config.set("npcWallets.$npcId.balances.$currencyId", amount)
+            }
+        }
         return config
     }
+}
+
+internal fun loadPlayerDataFromConfig(uuid: UUID, config: YamlConfiguration): PlayerData {
+    val completedQuests = config.getStringList("completedQuests").toMutableSet()
+
+    val reputation = mutableMapOf<String, Int>()
+    config.getConfigurationSection("reputation")?.let { section ->
+        for (key in section.getKeys(false)) {
+            reputation[key] = section.getInt(key)
+        }
+    }
+
+    val npcWallets = mutableMapOf<String, NpcWalletState>()
+    config.getConfigurationSection("npcWallets")?.let { walletSection ->
+        for (npcId in walletSection.getKeys(false)) {
+            val npcSection = walletSection.getConfigurationSection(npcId) ?: continue
+            val nativeCurrencyId = npcSection.getString("nativeCurrency")?.takeIf { it.isNotBlank() } ?: continue
+            val balances = mutableMapOf<String, Long>()
+            npcSection.getConfigurationSection("balances")?.let { balanceSection ->
+                for (currencyId in balanceSection.getKeys(false)) {
+                    val amount = balanceSection.getLong(currencyId)
+                    if (amount > 0L) balances[currencyId] = amount
+                }
+            }
+            npcWallets[npcId] = NpcWalletState(
+                nativeCurrencyId = nativeCurrencyId,
+                lastRestockAtEpochMillis = npcSection.getLong("lastRestockAt"),
+                balances = balances
+            )
+        }
+    }
+
+    return PlayerData(
+        uuid = uuid,
+        completedQuests = completedQuests,
+        reputation = reputation,
+        npcWallets = npcWallets
+    )
 }
 
 class PersistenceManager(val plugin: SneakyNPCs): Listener {
@@ -138,7 +205,8 @@ class PersistenceManager(val plugin: SneakyNPCs): Listener {
                     return@supplyAsync PlayerData(
                         uuid = uuid,
                         completedQuests = mutableSetOf(),
-                        reputation = mutableMapOf()
+                        reputation = mutableMapOf(),
+                        npcWallets = mutableMapOf()
                     ).also { dataCache[uuid] = it }
                 }
 
@@ -172,21 +240,12 @@ class PersistenceManager(val plugin: SneakyNPCs): Listener {
                     }
                 }
 
-                val completedQuests = config.getStringList("completedQuests").toMutableSet()
-
-                val reputation = mutableMapOf<String, Int>()
-                config.getConfigurationSection("reputation")?.let { section ->
-                    for (key in section.getKeys(false)) {
-                        reputation[key] = section.getInt(key)
-                    }
-                }
-
-                plugin.logger.warning("Loaded player data for $uuid: ${completedQuests.size} completed quests, ${reputation.size} reputation entries")
-                return@supplyAsync PlayerData(
-                    uuid = uuid,
-                    completedQuests = completedQuests,
-                    reputation = reputation
-                ).also { dataCache[uuid] = it }
+                val playerData = loadPlayerDataFromConfig(uuid, config)
+                plugin.logger.warning(
+                    "Loaded player data for $uuid: ${playerData.getCompletedQuests(null).size} completed quests, " +
+                        "${playerData.getReputationEntries().size} reputation entries, ${playerData.getNpcWalletCount()} npc wallets"
+                )
+                return@supplyAsync playerData.also { dataCache[uuid] = it }
             }
             future.whenComplete { _, _ -> loadingCache.remove(uuid, future) }
             future

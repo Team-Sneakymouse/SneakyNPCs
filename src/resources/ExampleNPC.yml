@@ -1,9 +1,11 @@
 style: jacktimbers
 friendship: false # not implemented
 reputation: CopperGuild # not implemented
-maxGold: 1000
-restockInterval: 3600
-restockAmount: 100
+wallet:
+  currency: silver
+  max: 50
+  restockInterval: 3600
+  restockAmount: 100
 rootMenu:
   type: selection
   gui: main

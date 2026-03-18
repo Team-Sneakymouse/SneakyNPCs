@@ -14,13 +14,15 @@ object ReloadCommand {
     fun createCommand(): LiteralArgumentBuilder<CommandSourceStack> {
         val plugin = SneakyNPCs.getInstance()
         return Commands.literal("reload").executes { command ->
-            command.source.sender.sendMessage(
+            val sender = command.source.sender
+
+            sender.sendMessage(
                 plugin.prefix.append(Component.text("Reloading configurations...", NamedTextColor.GRAY))
             )
 
             plugin.reloadNpcConfigs("SneakyNPCsReloadCommand") { result ->
                 if (result.throwable != null) {
-                    command.source.sender.sendMessage(Component.join(JoinConfiguration.noSeparators(),
+                    sender.sendMessage(Component.join(JoinConfiguration.noSeparators(),
                         plugin.prefix,
                         Component.text("Failed to load NPC configurations", NamedTextColor.RED),
                         Component.newline(),
@@ -30,21 +32,28 @@ object ReloadCommand {
                 }
 
                 if (result.errors.isNotEmpty()) {
-                    command.source.sender.sendMessage(Component.join(JoinConfiguration.noSeparators(),
+                    val summaryText = when {
+                        result.loadedCount == 0 && result.keptCount > 0 ->
+                            "Reload aborted due to validation errors. Kept ${result.keptCount} existing NPC configurations."
+                        result.loadedCount == 0 ->
+                            "Reload found ${result.errors.size} validation error groups."
+                        else ->
+                            "Reload completed with ${result.errors.size} validation error groups."
+                    }
+
+                    sender.sendMessage(Component.join(JoinConfiguration.noSeparators(),
                         plugin.prefix,
-                        Component.text("Skipped loading ${result.errors.size} npc config files due to validation errors", NamedTextColor.RED),
+                        Component.text(summaryText, NamedTextColor.RED),
                         Component.newline(),
-                        *result.errors.map { Component.join(JoinConfiguration.newlines(),
-                            Component.text("${it.npcId}:", NamedTextColor.WHITE),
-                            *it.errors.map { Component.text("- $it", NamedTextColor.GRAY) }.toTypedArray()
-                        ) }.toTypedArray()
+                        Component.join(JoinConfiguration.newlines(), result.errors.map { it.asComponent() })
                     ))
                 }
 
-                command.source.sender.sendMessage(Component.join(JoinConfiguration.noSeparators(),
+                val statusColor = if (result.errors.isEmpty()) NamedTextColor.GREEN else NamedTextColor.YELLOW
+                sender.sendMessage(Component.join(JoinConfiguration.noSeparators(),
                     plugin.prefix,
-                    Component.text("Reloaded ${result.loadedCount} NPC configurations.", NamedTextColor.GREEN),
-                    if(result.keptCount > 0) Component.join(JoinConfiguration.noSeparators(),
+                    Component.text("Reloaded ${result.loadedCount} NPC configurations.", statusColor),
+                    if (result.keptCount > 0) Component.join(JoinConfiguration.noSeparators(),
                         Component.text(" Kept ", NamedTextColor.GRAY),
                         Component.text("${result.keptCount}", NamedTextColor.GOLD),
                         Component.text(" existing NPCs that failed to reload.", NamedTextColor.GRAY)

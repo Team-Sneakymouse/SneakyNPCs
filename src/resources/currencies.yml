@@ -2,16 +2,19 @@ currencies:
   penny:
     item: money-penny
     variable: bankPenny
+    sellable: true
     exchangeTo: silver
     rate: 50
   silver:
     item: money-silver
     variable: bankSilver
+    sellable: true
     exchangeTo: gold
     rate: 50
   gold:
     item: money-gold
     variable: bankGold
+    sellable: true
     exchangeTo: diamond
     rate: 50
   diamond:

@@ -7,16 +7,42 @@ import java.io.File
 import java.math.BigInteger
 import java.util.ArrayDeque
 
-class CurrencyGraphService(private val plugin: SneakyNPCs) {
+interface CurrencyLookup {
+    fun getCurrency(currencyId: String): CurrencyDefinition?
+    fun hasCurrency(currencyId: String): Boolean
+    fun getAtomicValue(currencyId: String): BigInteger?
+    fun getConvertibleCurrencies(currencyId: String): Set<String>
+    fun getWalletCurrencies(nativeCurrencyId: String): List<CurrencyDefinition>
+    fun isConvertible(fromCurrencyId: String, toCurrencyId: String): Boolean
+}
+
+class CurrencyGraphService(private val plugin: SneakyNPCs) : CurrencyLookup {
     private var currencies: Map<String, CurrencyDefinition> = emptyMap()
     private var atomicValues: Map<String, BigInteger> = emptyMap()
     private var components: Map<String, Set<String>> = emptyMap()
 
     fun getCurrencies(): Map<String, CurrencyDefinition> = currencies
-    fun getCurrency(currencyId: String): CurrencyDefinition? = currencies[currencyId]
-    fun hasCurrency(currencyId: String): Boolean = currencies.containsKey(currencyId)
-    fun getAtomicValue(currencyId: String): BigInteger? = atomicValues[currencyId]
-    fun getConvertibleCurrencies(currencyId: String): Set<String> = components[currencyId] ?: emptySet()
+    override fun getCurrency(currencyId: String): CurrencyDefinition? = currencies[currencyId]
+    override fun hasCurrency(currencyId: String): Boolean = currencies.containsKey(currencyId)
+    override fun getAtomicValue(currencyId: String): BigInteger? = atomicValues[currencyId]
+    override fun getConvertibleCurrencies(currencyId: String): Set<String> = components[currencyId] ?: emptySet()
+    override fun getWalletCurrencies(nativeCurrencyId: String): List<CurrencyDefinition> {
+        val native = currencies[nativeCurrencyId] ?: return emptyList()
+        val component = components[nativeCurrencyId] ?: return listOf(native)
+        val others = component.asSequence()
+            .filter { it != nativeCurrencyId }
+            .mapNotNull(currencies::get)
+            .sortedWith(
+                compareByDescending<CurrencyDefinition> { atomicValues[it.id] ?: BigInteger.ZERO }
+                    .thenBy { it.id }
+            )
+            .toList()
+        return buildList {
+            add(native)
+            addAll(others)
+        }
+    }
+
     fun getRelatedBankCurrencies(currencyId: String): List<CurrencyDefinition> {
         val related = components[currencyId] ?: return emptyList()
         return related.mapNotNull(currencies::get)
@@ -27,7 +53,7 @@ class CurrencyGraphService(private val plugin: SneakyNPCs) {
             )
     }
 
-    fun isConvertible(fromCurrencyId: String, toCurrencyId: String): Boolean =
+    override fun isConvertible(fromCurrencyId: String, toCurrencyId: String): Boolean =
         components[fromCurrencyId]?.contains(toCurrencyId) == true
 
     fun loadCurrencies(file: File): List<String> {
@@ -50,12 +76,21 @@ class CurrencyGraphService(private val plugin: SneakyNPCs) {
             val variableId = section.getString("variable")?.takeIf { it.isNotBlank() }
             val exchangeTo = section.getString("exchangeTo")?.takeIf { it.isNotBlank() }
             val rawRate = section.get("rate")
+            val rawSellable = section.get("sellable")
             val rate = when (rawRate) {
                 null -> null
                 is Int -> rawRate
                 is String -> rawRate.toIntOrNull()
                 is Number -> rawRate.toInt()
                 else -> null
+            }
+            val sellable = when (rawSellable) {
+                null -> false
+                is Boolean -> rawSellable
+                else -> {
+                    errors.add("Currency '$currencyId' has invalid 'sellable' value '$rawSellable'. Expected boolean")
+                    false
+                }
             }
 
             if (itemId == null && variableId == null) {
@@ -89,7 +124,8 @@ class CurrencyGraphService(private val plugin: SneakyNPCs) {
                 itemMagicItem = itemMagicItem,
                 variableId = variableId,
                 exchangeToCurrency = exchangeTo,
-                exchangeRate = rate
+                exchangeRate = rate,
+                sellable = sellable
             )
         }
 

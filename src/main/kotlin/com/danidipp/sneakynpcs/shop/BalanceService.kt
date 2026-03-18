@@ -72,6 +72,24 @@ class BalanceService {
         return true
     }
 
+    fun addInventoryCurrencyUnits(player: Player, currency: CurrencyDefinition, amount: Long): Boolean {
+        if (amount <= 0L) return true
+        if (amount > Int.MAX_VALUE) return false
+
+        val template = currency.itemMagicItem?.itemStack ?: return false
+        if (!canFitItem(player.inventory, template, amount.toInt())) return false
+
+        var remaining = amount.toInt()
+        while (remaining > 0) {
+            val nextAmount = minOf(template.maxStackSize.coerceAtLeast(1), remaining)
+            val stack = template.clone().apply { this.amount = nextAmount }
+            val leftovers = player.inventory.addItem(stack)
+            if (leftovers.isNotEmpty()) return false
+            remaining -= nextAmount
+        }
+        return true
+    }
+
     fun canFitItem(inventory: Inventory, item: ItemStack, amount: Int): Boolean {
         if (amount <= 0) return true
 

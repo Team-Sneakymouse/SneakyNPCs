@@ -10,6 +10,7 @@ data class CurrencyDefinition(
     val variableId: String?,
     val exchangeToCurrency: String?,
     val exchangeRate: Int?,
+    val sellable: Boolean,
 )
 
 data class ShopPrice(

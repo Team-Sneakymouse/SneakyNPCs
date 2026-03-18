@@ -11,8 +11,10 @@ import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.NamedTextColor
 import net.kyori.adventure.text.format.TextDecoration
 import org.bukkit.entity.Player
+import org.bukkit.event.inventory.InventoryAction
 import org.bukkit.event.inventory.ClickType
 import org.bukkit.event.inventory.InventoryClickEvent
+import org.bukkit.event.inventory.InventoryDragEvent
 import org.bukkit.inventory.ItemStack
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -39,6 +41,8 @@ class ShopMenu(
         30, 31, 32, 33, 34, 35
     )
     private val pageToggleSlot = 40
+    private val sellSlot = 44
+    private val walletSlot = 2
 
     override fun open(gui: NPCGui, player: Player, playerData: PlayerData?) {
         val page = pageState[player.uniqueId] ?: 0
@@ -47,9 +51,13 @@ class ShopMenu(
 
     override fun onClick(gui: NPCGui, event: InventoryClickEvent) {
         val player = event.whoClicked as? Player ?: return
-        if (!isAllowedClick(event.click)) return
-
         val currentPage = pageState[player.uniqueId] ?: 0
+        if (event.slot == sellSlot) {
+            handleSellSlotClick(gui, player, event)
+            return
+        }
+
+        if (!isAllowedBuyClick(event.click)) return
 
         if (event.slot == pageToggleSlot && items.size > 24) {
             val nextPage = if (currentPage == 0) 1 else 0
@@ -89,6 +97,7 @@ class ShopMenu(
         inv.clear()
         inv.setItem(0, makeItem(npc.guiModelKey, "alt"))
         inv.setItem(53, makeItem("lom:npcs/tradewindow"))
+        buildWalletStatusItem(player, npc)?.let { inv.setItem(walletSlot, it) }
         buildCurrencyTooltipItem(player)?.let { inv.setItem(39, it) }
 
         val pageStart = page * 24
@@ -109,8 +118,104 @@ class ShopMenu(
         return shopItem.magicItem.itemStack.maxStackSize.coerceAtLeast(1)
     }
 
-    private fun isAllowedClick(click: ClickType): Boolean {
+    fun onPlayerInventoryClick(gui: NPCGui, event: InventoryClickEvent) {
+        val player = event.whoClicked as? Player ?: return
+        if (!event.isShiftClick) return
+        val offeredStack = event.currentItem?.clone() ?: return
+        if (offeredStack.type.isAir) return
+
+        handleSellResult(
+            gui = gui,
+            player = player,
+            offeredStack = offeredStack,
+            onSuccess = {
+                event.clickedInventory?.setItem(event.slot, null)
+            }
+        )
+    }
+
+    fun onDrag(gui: NPCGui, event: InventoryDragEvent) {
+        if (event.rawSlots != setOf(sellSlot)) return
+
+        val player = event.whoClicked as? Player ?: return
+        val offeredStack = event.newItems[sellSlot]?.clone() ?: return
+        if (offeredStack.type.isAir || offeredStack.amount <= 0) return
+
+        handleSellResult(
+            gui = gui,
+            player = player,
+            offeredStack = offeredStack,
+            onSuccess = {
+                val remainingCursor = (event.oldCursor ?: return@handleSellResult).clone()
+                val newAmount = remainingCursor.amount - offeredStack.amount
+                event.view.setCursor(if (newAmount > 0) {
+                    remainingCursor.apply { amount = newAmount }
+                } else {
+                    null
+                })
+            }
+        )
+    }
+
+    private fun isAllowedBuyClick(click: ClickType): Boolean {
         return click == ClickType.LEFT || click == ClickType.SHIFT_LEFT
+    }
+
+    private fun handleSellSlotClick(gui: NPCGui, player: Player, event: InventoryClickEvent) {
+        val action = event.action
+        if (action != InventoryAction.PLACE_ALL &&
+            action != InventoryAction.PLACE_SOME &&
+            action != InventoryAction.PLACE_ONE &&
+            action != InventoryAction.SWAP_WITH_CURSOR
+        ) {
+            return
+        }
+
+        val cursor = event.cursor ?: return
+        if (cursor.type.isAir || cursor.amount <= 0) return
+        val offeredAmount = if (action == InventoryAction.PLACE_ONE) 1 else cursor.amount
+        val offeredStack = cursor.clone().apply { amount = offeredAmount }
+
+        handleSellResult(
+            gui = gui,
+            player = player,
+            offeredStack = offeredStack,
+            onSuccess = {
+                if (action == InventoryAction.PLACE_ONE) {
+                    val updatedCursor = cursor.clone()
+                    updatedCursor.amount = updatedCursor.amount - 1
+                    event.view.setCursor(updatedCursor.takeIf { it.amount > 0 })
+                } else {
+                    event.view.setCursor(null)
+                }
+            }
+        )
+    }
+
+    private fun handleSellResult(
+        gui: NPCGui,
+        player: Player,
+        offeredStack: ItemStack,
+        onSuccess: () -> Unit,
+    ) {
+        val playerData = plugin.persistenceManager.dataCache[player.uniqueId]
+        if (playerData == null) {
+            player.playSound(player.location, "lom:fail_wrong", 1f, 1f)
+            player.sendMessage(plugin.prefix.append(Component.text("Failed to fetch your data. Please tell Dani.", NamedTextColor.RED)))
+            return
+        }
+
+        when (val result = plugin.shopTransactionService.sell(player, playerData, gui.npc, offeredStack)) {
+            is ShopTransactionService.SellResult.Success -> {
+                onSuccess()
+                player.playSound(player.location, "lom:buy", 1f, 1f)
+                render(gui, player, pageState[player.uniqueId] ?: 0)
+            }
+            is ShopTransactionService.SellResult.Failure -> {
+                player.playSound(player.location, "lom:fail_wrong", 1f, 1f)
+                player.sendMessage(plugin.prefix.append(Component.text(result.message, NamedTextColor.RED)))
+            }
+        }
     }
 
     private fun buildCurrencyTooltipItem(player: Player): ItemStack? {
@@ -137,6 +242,50 @@ class ShopMenu(
                 meta.lore(lore)
             }
         }
+    }
+
+    private fun buildWalletStatusItem(player: Player, npc: com.danidipp.sneakynpcs.NPC): ItemStack? {
+        val playerData = plugin.persistenceManager.dataCache[player.uniqueId] ?: return null
+        val walletState = plugin.npcWalletService.getOrCreateRestockedWallet(playerData, npc)
+        val nativeCurrencyId = npc.wallet.currencyId
+        val nativeAmount = walletState.balances[nativeCurrencyId] ?: 0L
+        val item = if (nativeAmount <= 0L) {
+            makeItem("lom:invisible")
+        } else {
+            val fullness = ((nativeAmount.toDouble() / npc.wallet.max.toDouble()) * 25.0)
+                .toInt()
+                .coerceIn(1, 25)
+            makeItem("lom:npcs/progressbar-gold", fullness)
+        }
+
+        val lore = buildList {
+            if (walletState.balances.isEmpty()) {
+                add(
+                    Component.text("Empty", NamedTextColor.GRAY)
+                        .decoration(TextDecoration.ITALIC, false)
+                )
+            } else {
+                for ((currencyId, amount) in walletState.balances.toSortedMap()) {
+                    add(
+                        Component.text()
+                            .decoration(TextDecoration.ITALIC, false)
+                            .append(Component.text(formatCurrencyId(currencyId), NamedTextColor.GOLD))
+                            .append(Component.text(": ", NamedTextColor.DARK_GRAY))
+                            .append(Component.text(amount.toString(), NamedTextColor.YELLOW))
+                            .build()
+                    )
+                }
+            }
+        }
+
+        item.editMeta { meta ->
+            meta.displayName(
+                Component.text("NPC Wallet", NamedTextColor.YELLOW)
+                    .decoration(TextDecoration.ITALIC, false)
+            )
+            meta.lore(lore)
+        }
+        return item
     }
 
     private fun formatCurrencyId(currencyId: String): String {

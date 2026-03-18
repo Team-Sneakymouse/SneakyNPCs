@@ -2,6 +2,7 @@
 package com.danidipp.sneakynpcs
 
 import com.danidipp.sneakynpcs.menus.NPCMenu
+import com.danidipp.sneakynpcs.menus.ShopMenu
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.NamedTextColor
 import org.bukkit.Bukkit
@@ -63,7 +64,16 @@ class NPCGui(val plugin: SneakyNPCs, val npc: NPC, val player: Player) : Invento
         @EventHandler
         fun onInventoryDrag(event: InventoryDragEvent){
             if (event.inventory.holder !is NPCGui) return
+            val gui = event.inventory.holder as NPCGui
+            val shopMenu = gui.menu as? ShopMenu ?: return
+            val topSize = event.view.topInventory.size
+            val touchesTop = event.rawSlots.any { it < topSize }
+            if (!touchesTop) {
+                return
+            }
+
             event.isCancelled = true
+            shopMenu.onDrag(gui, event)
         }
 
         @EventHandler
@@ -71,20 +81,32 @@ class NPCGui(val plugin: SneakyNPCs, val npc: NPC, val player: Player) : Invento
             SneakyNPCs.getInstance().logger.info("Clicked GUI ${event.inventory.holder?.javaClass?.simpleName} for ${event.whoClicked.name} at slot ${event.slot}")
             if (event.inventory.holder !is NPCGui) return
             val gui = event.inventory.holder as NPCGui
-            event.isCancelled = true
 
             // Double-click collect-to-cursor interactions can emit extra click events.
             if (event.click == ClickType.DOUBLE_CLICK || event.action == InventoryAction.COLLECT_TO_CURSOR) {
+                event.isCancelled = true
                 return
             }
 
             if (event.clickedInventory == null) {
+                event.isCancelled = true
                 gui.goBackOneLevel()
                 return
             }
 
-            if (event.clickedInventory != event.view.topInventory) return
-            gui.menu.onClick(gui, event)
+            if (event.clickedInventory == event.view.topInventory) {
+                event.isCancelled = true
+                gui.menu.onClick(gui, event)
+                return
+            }
+
+            val shopMenu = gui.menu as? ShopMenu ?: return
+            if (!event.isShiftClick) {
+                return
+            }
+
+            event.isCancelled = true
+            shopMenu.onPlayerInventoryClick(gui, event)
         }
 
         @EventHandler

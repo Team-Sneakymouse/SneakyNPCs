@@ -1,17 +1,32 @@
 package com.danidipp.sneakynpcs.shop
 
+import com.danidipp.sneakynpcs.NPC
+import com.danidipp.sneakynpcs.PlayerData
 import com.danidipp.sneakynpcs.menus.ShopMenuItem
+import com.nisovin.magicspells.MagicSpells
+import org.bukkit.NamespacedKey
 import org.bukkit.entity.Player
+import org.bukkit.inventory.ItemStack
+import org.bukkit.persistence.PersistentDataType
 import java.math.BigInteger
 
 class ShopTransactionService(
     private val currencyGraphService: CurrencyGraphService,
     private val balanceService: BalanceService,
     private val requirementService: RequirementService,
+    private val npcWalletService: NpcWalletService,
 ) {
+    private val storeCurrencyKey = NamespacedKey(MagicSpells.getInstance(), "magicspellpermanentdata_store_value_currency")
+    private val storeAmountKey = NamespacedKey(MagicSpells.getInstance(), "magicspellpermanentdata_store_value_amount")
+
     sealed class PurchaseResult {
         object Success : PurchaseResult()
         data class Failure(val message: String) : PurchaseResult()
+    }
+
+    sealed class SellResult {
+        object Success : SellResult()
+        data class Failure(val message: String) : SellResult()
     }
 
     fun purchase(player: Player, shopItem: ShopMenuItem, quantity: Int): PurchaseResult {
@@ -66,6 +81,50 @@ class ShopTransactionService(
         }
 
         return PurchaseResult.Success
+    }
+
+    fun sell(player: Player, playerData: PlayerData, npc: NPC, offeredStack: ItemStack): SellResult {
+        if (offeredStack.type.isAir || offeredStack.amount <= 0) {
+            return SellResult.Failure("There is nothing to sell.")
+        }
+
+        val storedValue = resolveStoredValue(offeredStack)
+            ?: return SellResult.Failure("This item has no sell value.")
+        val priceCurrency = currencyGraphService.getCurrency(storedValue.currencyId)
+            ?: return SellResult.Failure("This item has an invalid currency.")
+        if (!priceCurrency.sellable) {
+            return SellResult.Failure("This item cannot be sold.")
+        }
+        if (!currencyGraphService.isConvertible(npc.wallet.currencyId, priceCurrency.id)) {
+            return SellResult.Failure("This NPC cannot buy that item.")
+        }
+
+        val totalUnits = storedValue.amount.toLong() * offeredStack.amount.toLong()
+        if (totalUnits <= 0L) {
+            return SellResult.Failure("This item has an invalid sell value.")
+        }
+
+        if (priceCurrency.variableId == null) {
+            val payoutTemplate = priceCurrency.itemMagicItem?.itemStack ?: run {
+                return SellResult.Failure("This currency cannot be paid out.")
+            }
+            if (totalUnits > Int.MAX_VALUE || !balanceService.canFitItem(player.inventory, payoutTemplate, totalUnits.toInt())) {
+                return SellResult.Failure("Not enough inventory space for the payout.")
+            }
+        }
+
+        when (val spendResult = npcWalletService.spendForSale(playerData, npc, priceCurrency.id, totalUnits)) {
+            is NpcWalletService.SpendResult.Failure -> return SellResult.Failure(spendResult.message)
+            NpcWalletService.SpendResult.Success -> Unit
+        }
+
+        if (priceCurrency.variableId != null) {
+            balanceService.addBankCurrencyUnits(player, priceCurrency, totalUnits)
+        } else if (!balanceService.addInventoryCurrencyUnits(player, priceCurrency, totalUnits)) {
+            return SellResult.Failure("Failed to deliver the payout.")
+        }
+
+        return SellResult.Success
     }
 
     private fun buildPaymentPlan(
@@ -355,6 +414,15 @@ class ShopTransactionService(
         } catch (_: ArithmeticException) {
             Long.MAX_VALUE
         }
+    }
+
+    private fun resolveStoredValue(stack: ItemStack): ShopPrice? {
+        val itemMeta = stack.itemMeta ?: return null
+        val pdc = itemMeta.persistentDataContainer
+        val currencyId = pdc.get(storeCurrencyKey, PersistentDataType.STRING)?.takeIf { it.isNotBlank() } ?: return null
+        val amount = pdc.get(storeAmountKey, PersistentDataType.STRING)?.toIntOrNull() ?: return null
+        if (amount <= 0) return null
+        return ShopPrice(currencyId = currencyId, amount = amount)
     }
 
     private data class FundBucket(

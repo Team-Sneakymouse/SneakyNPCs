@@ -76,6 +76,7 @@ class ShopMenu(
         when (val result = plugin.shopTransactionService.purchase(player, shopItem, quantity)) {
             is ShopTransactionService.PurchaseResult.Success -> {
                 player.playSound(player.location, "lom:buy", 1f, 1f)
+                player.sendMessage(buildPurchaseMessage(shopItem, quantity))
                 render(gui, player, currentPage)
             }
             is ShopTransactionService.PurchaseResult.Failure -> {
@@ -314,6 +315,27 @@ class ShopMenu(
             .append(buildSellItemComponent(offeredStack))
             .append(Component.text(" for ", NamedTextColor.GRAY))
             .append(payoutComponent)
+            .build()
+    }
+
+    private fun buildPurchaseMessage(shopItem: ShopMenuItem, quantity: Int): Component {
+        val purchasedStack = shopItem.magicItem.itemStack.clone().apply { amount = quantity }
+        val totalPrice = shopItem.price.amount.toLong() * quantity.toLong()
+        val priceComponent = Component.text(
+            "$totalPrice ${formatCurrencyId(shopItem.price.currencyId)}",
+            NamedTextColor.GOLD
+        )
+        val builder = Component.text()
+            .append(Component.text("You bought ", NamedTextColor.GRAY))
+
+        if (quantity > 1) {
+            builder.append(Component.text("${quantity}x ", NamedTextColor.GRAY))
+        }
+
+        return builder
+            .append(buildSellItemComponent(purchasedStack))
+            .append(Component.text(" for ", NamedTextColor.GRAY))
+            .append(priceComponent)
             .build()
     }
 

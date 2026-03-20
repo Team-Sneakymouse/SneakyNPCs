@@ -13,14 +13,18 @@ import org.bukkit.persistence.PersistentDataType
 import java.math.BigInteger
 
 class ShopTransactionService(
-    private val currencyGraphService: CurrencyGraphService,
+    private val currencyGraphService: CurrencyLookup,
     private val balanceService: BalanceService,
     private val requirementService: RequirementService,
     private val npcWalletService: NpcWalletService,
     private val inventoryTransactionLogger: InventoryTransactionLogger,
 ) {
-    private val storeCurrencyKey = NamespacedKey(MagicSpells.getInstance(), "magicspellpermanentdata_store_value_currency")
-    private val storeAmountKey = NamespacedKey(MagicSpells.getInstance(), "magicspellpermanentdata_store_value_amount")
+    private val storeCurrencyKey by lazy(LazyThreadSafetyMode.NONE) {
+        NamespacedKey(MagicSpells.getInstance(), "magicspellpermanentdata_store_value_currency")
+    }
+    private val storeAmountKey by lazy(LazyThreadSafetyMode.NONE) {
+        NamespacedKey(MagicSpells.getInstance(), "magicspellpermanentdata_store_value_amount")
+    }
 
     sealed class PurchaseResult {
         object Success : PurchaseResult()
@@ -168,13 +172,19 @@ class ShopTransactionService(
 
         val buckets = buildBuckets(player, convertible)
         if (buckets.isEmpty()) return null
+        return buildPaymentPlanFromBuckets(priceCurrency, requiredAtomic, priceAtomic, buckets)
+    }
 
+    internal fun buildPaymentPlanFromBuckets(
+        priceCurrency: CurrencyDefinition,
+        requiredAtomic: BigInteger,
+        priceAtomic: BigInteger,
+        buckets: List<FundBucket>,
+    ): PaymentPlan? {
         val inventoryBuckets = buckets.filter { it.source == PaymentSource.INVENTORY }
         val bankBuckets = buckets.filter { it.source == PaymentSource.BANK }
 
         val hasBankChange = priceCurrency.variableId != null
-        val collectedSpends = mutableListOf<PaymentSpend>()
-        var collectedAtomic = BigInteger.ZERO
 
         // Inventory-first with optional overpay completion if price currency supports bank change.
         if (inventoryBuckets.isNotEmpty() && hasBankChange) {
@@ -188,39 +198,40 @@ class ShopTransactionService(
             }
         }
 
-        // Spend as much as possible from inventory without overpaying first.
-        if (inventoryBuckets.isNotEmpty()) {
-            val inventoryPart = collectNoOverpayBestEffort(inventoryBuckets, requiredAtomic)
-            collectedAtomic = collectedAtomic.add(inventoryPart.collected)
-            collectedSpends.addAll(inventoryPart.spends)
+        val inventoryCandidates = buildInventoryCandidates(inventoryBuckets, requiredAtomic, priceAtomic, hasBankChange)
+        for (inventoryPart in inventoryCandidates) {
+            val collectedSpends = inventoryPart.spends.toMutableList()
+            var collectedAtomic = inventoryPart.collected
+
+            if (collectedAtomic >= requiredAtomic) {
+                return PaymentPlan(collectedSpends, 0L)
+            }
+
+            val remaining = requiredAtomic.subtract(collectedAtomic)
+            if (bankBuckets.isEmpty()) continue
+
+            val bankResult = if (hasBankChange) {
+                collectWithOptionalOverpayPreferred(bankBuckets, remaining, priceCurrency.id)
+            } else {
+                collectExactPreferred(bankBuckets, remaining, priceCurrency.id)
+            } ?: continue
+
+            collectedSpends.addAll(bankResult.spends)
+            collectedAtomic = collectedAtomic.add(bankResult.collected)
+            if (collectedAtomic < requiredAtomic) continue
+
+            val overpay = collectedAtomic.subtract(requiredAtomic)
+            if (overpay == BigInteger.ZERO) return PaymentPlan(collectedSpends, 0L)
+            if (!hasBankChange) continue
+            if (overpay.mod(priceAtomic) != BigInteger.ZERO) continue
+
+            return PaymentPlan(
+                spends = collectedSpends,
+                changeUnits = overpay.divide(priceAtomic).longValueExact()
+            )
         }
 
-        if (collectedAtomic >= requiredAtomic) {
-            return PaymentPlan(collectedSpends, 0L)
-        }
-
-        val remaining = requiredAtomic.subtract(collectedAtomic)
-        if (bankBuckets.isEmpty()) return null
-
-        val bankResult = if (hasBankChange) {
-            collectWithOptionalOverpayPreferred(bankBuckets, remaining, priceCurrency.id)
-        } else {
-            collectExactPreferred(bankBuckets, remaining, priceCurrency.id)
-        } ?: return null
-
-        collectedSpends.addAll(bankResult.spends)
-        collectedAtomic = collectedAtomic.add(bankResult.collected)
-        if (collectedAtomic < requiredAtomic) return null
-
-        val overpay = collectedAtomic.subtract(requiredAtomic)
-        if (overpay == BigInteger.ZERO) return PaymentPlan(collectedSpends, 0L)
-        if (!hasBankChange) return null
-        if (overpay.mod(priceAtomic) != BigInteger.ZERO) return null
-
-        return PaymentPlan(
-            spends = collectedSpends,
-            changeUnits = overpay.divide(priceAtomic).longValueExact()
-        )
+        return null
     }
 
     private fun buildBuckets(player: Player, currencies: Set<String>): List<FundBucket> {
@@ -290,9 +301,9 @@ class ShopTransactionService(
         val spends = noOverpay.spends.toMutableList()
         spends.add(
             PaymentSpend(
-                currencyId = chosen!!.first.currencyId,
-                source = chosen!!.first.source,
-                units = chosen!!.second
+                currencyId = chosen.first.currencyId,
+                source = chosen.first.source,
+                units = chosen.second
             )
         )
         val collected = noOverpay.collected.add(remaining).add(chosen!!.third)
@@ -405,6 +416,66 @@ class ShopTransactionService(
         )
     }
 
+    private fun buildInventoryCandidates(
+        inventoryBuckets: List<FundBucket>,
+        requiredAtomic: BigInteger,
+        priceAtomic: BigInteger,
+        hasBankChange: Boolean,
+    ): List<CollectResult> {
+        if (inventoryBuckets.isEmpty()) {
+            return listOf(CollectResult(mutableListOf(), BigInteger.ZERO, 0L))
+        }
+
+        val baseline = collectNoOverpayBestEffort(inventoryBuckets, requiredAtomic)
+        if (!hasBankChange || baseline.spends.isEmpty()) {
+            return listOf(baseline)
+        }
+
+        val baselineUnits = baseline.spends.associate { it.currencyId to it.units }.toMutableMap()
+        val candidates = linkedMapOf<String, CollectResult>()
+
+        fun snapshot(currentUnits: Map<String, Long>, currentCollected: BigInteger) {
+            val spends = inventoryBuckets.asSequence()
+                .mapNotNull { bucket ->
+                    val units = currentUnits[bucket.currencyId] ?: 0L
+                    if (units <= 0L) null else PaymentSpend(bucket.currencyId, PaymentSource.INVENTORY, units)
+                }
+                .toMutableList()
+            val result = CollectResult(
+                spends = spends,
+                collected = currentCollected,
+                totalUnitsSpent = currentUnits.values.sum()
+            )
+            val key = spends.joinToString("|") { "${it.currencyId}:${it.units}" }
+            candidates.putIfAbsent(key, result)
+        }
+
+        snapshot(baselineUnits, baseline.collected)
+
+        // If the greedy inventory spend leaves an unusable remainder, progressively trim the
+        // lowest-value inventory denominations until the bank can settle the rest cleanly.
+        val currentUnits = baselineUnits.toMutableMap()
+        var currentCollected = baseline.collected
+        val removalOrder = inventoryBuckets
+            .filter { (currentUnits[it.currencyId] ?: 0L) > 0L && it.atomicPerUnit.mod(priceAtomic) != BigInteger.ZERO }
+            .sortedWith(compareBy<FundBucket> { it.atomicPerUnit }.thenBy { it.currencyId })
+
+        for (bucket in removalOrder) {
+            while ((currentUnits[bucket.currencyId] ?: 0L) > 0L) {
+                val updatedUnits = (currentUnits[bucket.currencyId] ?: 0L) - 1L
+                if (updatedUnits <= 0L) currentUnits.remove(bucket.currencyId)
+                else currentUnits[bucket.currencyId] = updatedUnits
+                currentCollected = currentCollected.subtract(bucket.atomicPerUnit)
+                snapshot(currentUnits, currentCollected)
+            }
+        }
+
+        return candidates.values.sortedWith(
+            compareByDescending<CollectResult> { it.collected }
+                .thenBy { it.totalUnitsSpent }
+        )
+    }
+
     private fun mergeSpends(spends: List<PaymentSpend>): MutableList<PaymentSpend> {
         val merged = linkedMapOf<String, PaymentSpend>()
         for (spend in spends) {
@@ -455,7 +526,7 @@ class ShopTransactionService(
         return ShopPrice(currencyId = currencyId, amount = amount)
     }
 
-    private data class FundBucket(
+    internal data class FundBucket(
         val currencyId: String,
         val source: PaymentSource,
         val availableUnits: Long,
@@ -468,12 +539,12 @@ class ShopTransactionService(
         val totalUnitsSpent: Long = spends.sumOf { it.units },
     )
 
-    private data class PaymentPlan(
+    internal data class PaymentPlan(
         val spends: MutableList<PaymentSpend>,
         val changeUnits: Long,
     )
 
-    private data class PaymentSpend(
+    internal data class PaymentSpend(
         val currencyId: String,
         val source: PaymentSource,
         val units: Long,

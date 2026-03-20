@@ -1,5 +1,6 @@
 package com.danidipp.sneakynpcs.menus
 
+import com.danidipp.sneakynpcs.InventoryAuditItems
 import com.danidipp.sneakynpcs.NPCGui
 import com.danidipp.sneakynpcs.PlayerData
 import com.danidipp.sneakynpcs.SneakyNPCs
@@ -137,6 +138,13 @@ class QuestMenu(val quests: List<NPCQuest>) : NPCMenu(MenuType.QUEST) {
                 remaining -= take
             }
         }
+
+        plugin.inventoryTransactionLogger.log(
+            player = player,
+            removedItems = itemCounts.flatMap { (requiredMagicItem, requiredAmount) ->
+                InventoryAuditItems.split(requiredMagicItem.itemStack, requiredAmount.toLong())
+            }
+        )
 
         playerData.completeQuest(quest.quest)
         player.sendMessage(plugin.prefix.append(Component.text("Quest completed!", NamedTextColor.GREEN)))

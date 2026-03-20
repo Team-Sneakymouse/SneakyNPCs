@@ -61,6 +61,7 @@ class ShopMenu(
 
         if (event.slot == pageToggleSlot && items.size > 24) {
             val nextPage = if (currentPage == 0) 1 else 0
+            gui.playNavigationSound()
             render(gui, player, nextPage)
             return
         }
@@ -208,7 +209,9 @@ class ShopMenu(
         when (val result = plugin.shopTransactionService.sell(player, playerData, gui.npc, offeredStack)) {
             is ShopTransactionService.SellResult.Success -> {
                 onSuccess()
+                plugin.inventoryTransactionLogger.log(player = player, removedItems = listOf(offeredStack.clone()))
                 player.playSound(player.location, "lom:buy", 1f, 1f)
+                player.sendMessage(buildSellMessage(offeredStack, result.payoutAmount, result.currencyId))
                 render(gui, player, pageState[player.uniqueId] ?: 0)
             }
             is ShopTransactionService.SellResult.Failure -> {
@@ -293,6 +296,37 @@ class ShopMenu(
             .filter { it.isNotBlank() }
             .joinToString(" ") { part ->
                 part.lowercase().replaceFirstChar { char ->
+                    if (char.isLowerCase()) char.titlecase() else char.toString()
+                }
+            }
+    }
+
+    private fun buildSellMessage(offeredStack: ItemStack, payoutAmount: Long, currencyId: String): Component {
+        val payoutComponent = Component.text("$payoutAmount ${formatCurrencyId(currencyId)}", NamedTextColor.GOLD)
+        val builder = Component.text()
+            .append(Component.text("You sold ", NamedTextColor.GRAY))
+
+        if (offeredStack.amount > 1) {
+            builder.append(Component.text("${offeredStack.amount}x ", NamedTextColor.GRAY))
+        }
+
+        return builder
+            .append(buildSellItemComponent(offeredStack))
+            .append(Component.text(" for ", NamedTextColor.GRAY))
+            .append(payoutComponent)
+            .build()
+    }
+
+    private fun buildSellItemComponent(stack: ItemStack): Component {
+        val itemName = runCatching { stack.displayName() }.getOrNull() ?: Component.text(formatMaterialName(stack))
+        return itemName.hoverEvent(stack.asHoverEvent())
+    }
+
+    private fun formatMaterialName(stack: ItemStack): String {
+        return stack.type.name.lowercase()
+            .split('_')
+            .joinToString(" ") { part ->
+                part.replaceFirstChar { char ->
                     if (char.isLowerCase()) char.titlecase() else char.toString()
                 }
             }

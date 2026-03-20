@@ -10,3 +10,6 @@ dependencies:
     MagicSpells:
       load: BEFORE
       required: true
+    CoreProtect:
+      load: BEFORE
+      required: false

@@ -22,6 +22,7 @@ class NPCGui(val plugin: SneakyNPCs, val npc: NPC, val player: Player) : Invento
     override fun getInventory() = inventory
     private val menuStack = ArrayDeque<NPCMenu>()
     private var menu: NPCMenu = npc.rootMenu
+    private var reopenOnClose = true
 
     init {
         menuStack.addLast(npc.rootMenu)
@@ -31,17 +32,20 @@ class NPCGui(val plugin: SneakyNPCs, val npc: NPC, val player: Player) : Invento
     fun openRoot() {
         menuStack.clear()
         menuStack.addLast(npc.rootMenu)
+        playNavigationSound()
         openCurrentMenu()
     }
 
     fun pushMenu(child: NPCMenu) {
         menuStack.addLast(child)
+        playNavigationSound()
         openCurrentMenu()
     }
 
     fun goBackOneLevel(): Boolean {
         if (menuStack.size <= 1) return false
         menuStack.removeLast()
+        playNavigationSound()
         openCurrentMenu()
         return true
     }
@@ -57,7 +61,17 @@ class NPCGui(val plugin: SneakyNPCs, val npc: NPC, val player: Player) : Invento
     }
 
     fun close() {
+        closeAllLevels()
+    }
+
+    fun closeAllLevels() {
+        reopenOnClose = false
+        menuStack.clear()
         player.closeInventory()
+    }
+
+    fun playNavigationSound() {
+        player.playSound(player.location, "lom:ui.button.click", 1f, 1f)
     }
 
     companion object GuiListener : Listener {
@@ -113,6 +127,7 @@ class NPCGui(val plugin: SneakyNPCs, val npc: NPC, val player: Player) : Invento
         fun onInventoryClose(event: InventoryCloseEvent) {
             if (event.inventory.holder !is NPCGui) return
             val gui = event.inventory.holder as NPCGui
+            if (!gui.reopenOnClose) return
             if (gui.goBackOneLevel()) {
                 Bukkit.getScheduler().runTask(SneakyNPCs.getInstance()) { _ ->
                     event.player.openInventory(gui.inventory)

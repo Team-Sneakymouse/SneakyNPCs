@@ -30,6 +30,7 @@ class SneakyNPCs : JavaPlugin() {
     lateinit var balanceService: BalanceService
     lateinit var requirementService: RequirementService
     lateinit var npcWalletService: NpcWalletService
+    lateinit var inventoryTransactionLogger: InventoryTransactionLogger
     lateinit var shopTransactionService: ShopTransactionService
     val npcs = mutableMapOf<String, NPC>()
     private val configReloadInProgress = AtomicBoolean(false)
@@ -50,7 +51,14 @@ class SneakyNPCs : JavaPlugin() {
         balanceService = BalanceService()
         requirementService = RequirementService()
         npcWalletService = NpcWalletService(currencyGraphService)
-        shopTransactionService = ShopTransactionService(currencyGraphService, balanceService, requirementService, npcWalletService)
+        inventoryTransactionLogger = CoreProtectInventoryTransactionLogger.create(this) ?: NoOpInventoryTransactionLogger
+        shopTransactionService = ShopTransactionService(
+            currencyGraphService,
+            balanceService,
+            requirementService,
+            npcWalletService,
+            inventoryTransactionLogger,
+        )
 
         //commands
         @field:Suppress("UnstableApiUsage")
@@ -92,6 +100,7 @@ class SneakyNPCs : JavaPlugin() {
         }
 
         logger.info("Reloading NPC configs (trigger=$trigger)")
+        closeOpenNpcGuis()
         configManager.loadConfigs().handle { loadResult, throwable ->
             try {
                 val resolvedThrowable = unwrapAsyncThrowable(throwable)
@@ -173,6 +182,22 @@ class SneakyNPCs : JavaPlugin() {
         server.scheduler.runTask(this, Runnable {
             callback(result)
         })
+    }
+
+    private fun closeOpenNpcGuis() {
+        val closeTask = Runnable {
+            for (player in server.onlinePlayers) {
+                val gui = player.openInventory.topInventory.holder as? NPCGui ?: continue
+                gui.closeAllLevels()
+            }
+        }
+
+        if (Bukkit.isPrimaryThread()) {
+            closeTask.run()
+            return
+        }
+
+        server.scheduler.runTask(this, closeTask)
     }
 
     data class ConfigReloadResult(

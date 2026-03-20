@@ -1,5 +1,7 @@
 package com.danidipp.sneakynpcs.shop
 
+import com.danidipp.sneakynpcs.InventoryAuditItems
+import com.danidipp.sneakynpcs.InventoryTransactionLogger
 import com.danidipp.sneakynpcs.NPC
 import com.danidipp.sneakynpcs.PlayerData
 import com.danidipp.sneakynpcs.menus.ShopMenuItem
@@ -15,6 +17,7 @@ class ShopTransactionService(
     private val balanceService: BalanceService,
     private val requirementService: RequirementService,
     private val npcWalletService: NpcWalletService,
+    private val inventoryTransactionLogger: InventoryTransactionLogger,
 ) {
     private val storeCurrencyKey = NamespacedKey(MagicSpells.getInstance(), "magicspellpermanentdata_store_value_currency")
     private val storeAmountKey = NamespacedKey(MagicSpells.getInstance(), "magicspellpermanentdata_store_value_amount")
@@ -25,7 +28,10 @@ class ShopTransactionService(
     }
 
     sealed class SellResult {
-        object Success : SellResult()
+        data class Success(
+            val currencyId: String,
+            val payoutAmount: Long,
+        ) : SellResult()
         data class Failure(val message: String) : SellResult()
     }
 
@@ -80,6 +86,19 @@ class ShopTransactionService(
             return PurchaseResult.Failure("Not enough inventory space.")
         }
 
+        val removedInventoryItems = buildList {
+            for (spend in plan.spends.filter { it.source == PaymentSource.INVENTORY }) {
+                val currency = currencyGraphService.getCurrency(spend.currencyId) ?: continue
+                val template = currency.itemMagicItem?.itemStack ?: continue
+                addAll(InventoryAuditItems.split(template, spend.units))
+            }
+        }
+        inventoryTransactionLogger.log(
+            player = player,
+            removedItems = removedInventoryItems,
+            addedItems = listOf(purchasableStack.clone()),
+        )
+
         return PurchaseResult.Success
     }
 
@@ -122,9 +141,20 @@ class ShopTransactionService(
             balanceService.addBankCurrencyUnits(player, priceCurrency, totalUnits)
         } else if (!balanceService.addInventoryCurrencyUnits(player, priceCurrency, totalUnits)) {
             return SellResult.Failure("Failed to deliver the payout.")
+        } else {
+            val payoutTemplate = priceCurrency.itemMagicItem?.itemStack
+            if (payoutTemplate != null) {
+                inventoryTransactionLogger.log(
+                    player = player,
+                    addedItems = InventoryAuditItems.split(payoutTemplate, totalUnits),
+                )
+            }
         }
 
-        return SellResult.Success
+        return SellResult.Success(
+            currencyId = priceCurrency.id,
+            payoutAmount = totalUnits
+        )
     }
 
     private fun buildPaymentPlan(

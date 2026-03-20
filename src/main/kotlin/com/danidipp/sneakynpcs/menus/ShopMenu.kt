@@ -40,8 +40,8 @@ class ShopMenu(
         21, 22, 23, 24, 25, 26,
         30, 31, 32, 33, 34, 35
     )
-    private val pageToggleSlot = 40
-    private val sellSlot = 44
+    private val pageToggleSlot = 44
+    private val sellSlot = 43
     private val walletSlot = 2
 
     override fun open(gui: NPCGui, player: Player, playerData: PlayerData?) {
@@ -98,7 +98,7 @@ class ShopMenu(
         val npc = gui.npc
         inv.clear()
         inv.setItem(0, makeItem(npc.guiModelKey, "alt"))
-        inv.setItem(53, makeItem("lom:npcs/tradewindow"))
+        inv.setItem(1, makeItem("lom:npcs/tradewindow"))
         buildWalletStatusItem(player, npc)?.let { inv.setItem(walletSlot, it) }
         buildCurrencyTooltipItem(player)?.let { inv.setItem(39, it) }
 

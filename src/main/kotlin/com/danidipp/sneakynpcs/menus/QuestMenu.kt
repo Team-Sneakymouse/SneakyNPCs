@@ -33,6 +33,7 @@ class QuestMenu(val quests: List<NPCQuest>) : NPCMenu(MenuType.QUEST) {
 
         val inv = gui.inventory
         val npc = gui.npc
+        val hideTooltip = shouldHideTooltip(player)
 
         val completedQuests = resolvedData.getCompletedQuests(npc.id)
         val currentQuest = quests.firstOrNull{ !completedQuests.contains(it.quest) }
@@ -42,9 +43,9 @@ class QuestMenu(val quests: List<NPCQuest>) : NPCMenu(MenuType.QUEST) {
         }
 
         inv.clear()
-        inv.setItem(0, makeItem(npc.guiModelKey, "alt"))
-        inv.setItem(1, makeItem(npc.questModelKey, currentQuest.quest))
-        inv.setItem(53, makeItem("lom:npcs/questbox", if (questCompletable(player, currentQuest)) "complete" else "incomplete"))
+        inv.setItem(0, makeItem(npc.guiModelKey, "alt", hideTooltip))
+        inv.setItem(1, makeItem(npc.questModelKey, currentQuest.quest, hideTooltip))
+        inv.setItem(53, makeItem("lom:npcs/questbox", if (questCompletable(player, currentQuest)) "complete" else "incomplete", hideTooltip))
 
         val items = currentQuest.items.toMutableList()
         for (slot in 5 until 9) {

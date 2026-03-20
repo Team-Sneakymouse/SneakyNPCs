@@ -11,7 +11,7 @@ class CustomMenu(val guiId: String) : NPCMenu(MenuType.CUSTOM) {
         val inv = gui.inventory
         val npc = gui.npc
         inv.clear()
-        inv.setItem(0, makeItem(npc.guiModelKey, guiId))
+        inv.setItem(0, makeItem(npc.guiModelKey, guiId, shouldHideTooltip(player)))
     }
 
     override fun onClick(gui: NPCGui, event: InventoryClickEvent) {

@@ -13,11 +13,12 @@ class SelectionMenu(
     override fun open(gui: NPCGui, player: Player, playerData: PlayerData?) {
         val inv = gui.inventory
         val npc = gui.npc
+        val hideTooltip = shouldHideTooltip(player)
         inv.clear()
-        inv.setItem(0, makeItem(npc.guiModelKey, guiId))
-        if (npc.friendship) inv.setItem(1, makeItem("lom:npcs/friendship", 0))
+        inv.setItem(0, makeItem(npc.guiModelKey, guiId, hideTooltip))
+        if (npc.friendship) inv.setItem(1, makeItem("lom:npcs/friendship", 0, hideTooltip))
         val rep = 0 // TODO: Get player reputation for npc's guild
-        if (rep >= 10) inv.setItem(51, makeItem("lom:npcs/progressbar-reputation", rep))
+        if (rep >= 10) inv.setItem(51, makeItem("lom:npcs/progressbar-reputation", rep, hideTooltip))
     }
 
     override fun onClick(gui: NPCGui, event: InventoryClickEvent) {

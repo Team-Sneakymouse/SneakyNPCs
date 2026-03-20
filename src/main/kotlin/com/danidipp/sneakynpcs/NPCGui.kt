@@ -114,12 +114,12 @@ class NPCGui(val plugin: SneakyNPCs, val npc: NPC, val player: Player) : Invento
                 return
             }
 
-            val shopMenu = gui.menu as? ShopMenu ?: return
             if (!event.isShiftClick) {
                 return
             }
 
             event.isCancelled = true
+            val shopMenu = gui.menu as? ShopMenu ?: return
             shopMenu.onPlayerInventoryClick(gui, event)
         }
 

@@ -96,9 +96,14 @@ class ShopMenu(
 
         val inv = gui.inventory
         val npc = gui.npc
+        val hideTooltip = shouldHideTooltip(player)
         inv.clear()
-        inv.setItem(0, makeItem(npc.guiModelKey, "alt"))
-        inv.setItem(1, makeItem("lom:npcs/tradewindow"))
+        for (slot in 0 until inv.size) {
+            if (slot == sellSlot) continue
+            inv.setItem(slot, makeItem("lom:invisible", hideTooltip = hideTooltip))
+        }
+        inv.setItem(0, makeItem(npc.guiModelKey, "alt", hideTooltip))
+        inv.setItem(1, makeItem("lom:npcs/tradewindow", hideTooltip = hideTooltip))
         buildWalletStatusItem(player, npc)?.let { inv.setItem(walletSlot, it) }
         buildCurrencyTooltipItem(player)?.let { inv.setItem(39, it) }
 
@@ -110,7 +115,8 @@ class ShopMenu(
         }
 
         if (items.size > 24) {
-            inv.setItem(pageToggleSlot, makeItem("lom:npcs/tradewindow", "page-${page + 1}"))
+            val pageToggleModelData = if (page == 0) "arrow-right" else "arrow-left"
+            inv.setItem(pageToggleSlot, makeItem("lom:npcs/button", pageToggleModelData, hideTooltip))
         }
     }
 
@@ -237,8 +243,9 @@ class ShopMenu(
                 .build()
         }
 
-        return makeItem("lom:invisible").apply {
+        return makeItem("lom:invisible", hideTooltip = shouldHideTooltip(player)).apply {
             editMeta { meta ->
+                meta.isHideTooltip = false
                 meta.displayName(
                     Component.text("Bank Balance", NamedTextColor.YELLOW)
                         .decoration(TextDecoration.ITALIC, false)
@@ -253,13 +260,14 @@ class ShopMenu(
         val walletState = plugin.npcWalletService.getOrCreateRestockedWallet(playerData, npc)
         val nativeCurrencyId = npc.wallet.currencyId
         val nativeAmount = walletState.balances[nativeCurrencyId] ?: 0L
+        val hideTooltip = shouldHideTooltip(player)
         val item = if (nativeAmount <= 0L) {
-            makeItem("lom:invisible")
+            makeItem("lom:invisible", hideTooltip = hideTooltip)
         } else {
             val fullness = ((nativeAmount.toDouble() / npc.wallet.max.toDouble()) * 25.0)
                 .toInt()
                 .coerceIn(1, 25)
-            makeItem("lom:npcs/progressbar-gold", fullness)
+            makeItem("lom:npcs/progressbar-gold", fullness, hideTooltip)
         }
 
         val lore = buildList {

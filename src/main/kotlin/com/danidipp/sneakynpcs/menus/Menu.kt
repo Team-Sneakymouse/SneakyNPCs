@@ -18,6 +18,7 @@ sealed class NPCMenu(val type: MenuType) {
 
     abstract fun open(gui: NPCGui, player: Player, playerData: PlayerData?)
     abstract fun onClick(gui: NPCGui, event: InventoryClickEvent)
+    open fun onClose(gui: NPCGui, player: Player) {}
     open fun childMenus(): List<NPCMenu> = emptyList()
     protected fun shouldHideTooltip(player: Player): Boolean = player.gameMode == GameMode.SURVIVAL
 

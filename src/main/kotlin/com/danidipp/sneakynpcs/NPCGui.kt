@@ -30,6 +30,7 @@ class NPCGui(val plugin: SneakyNPCs, val npc: NPC, val player: Player) : Invento
     }
 
     fun openRoot() {
+        closeCurrentMenu()
         menuStack.clear()
         menuStack.addLast(npc.rootMenu)
         playNavigationSound()
@@ -37,6 +38,7 @@ class NPCGui(val plugin: SneakyNPCs, val npc: NPC, val player: Player) : Invento
     }
 
     fun pushMenu(child: NPCMenu) {
+        closeCurrentMenu()
         menuStack.addLast(child)
         playNavigationSound()
         openCurrentMenu()
@@ -44,6 +46,7 @@ class NPCGui(val plugin: SneakyNPCs, val npc: NPC, val player: Player) : Invento
 
     fun goBackOneLevel(): Boolean {
         if (menuStack.size <= 1) return false
+        closeCurrentMenu()
         menuStack.removeLast()
         playNavigationSound()
         openCurrentMenu()
@@ -66,12 +69,17 @@ class NPCGui(val plugin: SneakyNPCs, val npc: NPC, val player: Player) : Invento
 
     fun closeAllLevels() {
         reopenOnClose = false
+        closeCurrentMenu()
         menuStack.clear()
         player.closeInventory()
     }
 
     fun playNavigationSound() {
         player.playSound(player.location, "lom:ui.button.click", 1f, 1f)
+    }
+
+    private fun closeCurrentMenu() {
+        menuStack.lastOrNull()?.onClose(this, player)
     }
 
     companion object GuiListener : Listener {

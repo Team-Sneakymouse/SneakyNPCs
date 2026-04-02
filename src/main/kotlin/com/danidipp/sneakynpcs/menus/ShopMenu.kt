@@ -5,9 +5,11 @@ import com.danidipp.sneakynpcs.PlayerData
 import com.danidipp.sneakynpcs.SneakyNPCs
 import com.danidipp.sneakynpcs.shop.ShopPrice
 import com.danidipp.sneakynpcs.shop.ShopRequirement
+import com.danidipp.sneakynpcs.shop.ShopSessionLedger
 import com.danidipp.sneakynpcs.shop.ShopTransactionService
 import com.nisovin.magicspells.util.magicitems.MagicItem
 import net.kyori.adventure.text.Component
+import net.kyori.adventure.text.JoinConfiguration
 import net.kyori.adventure.text.format.NamedTextColor
 import net.kyori.adventure.text.format.TextDecoration
 import org.bukkit.entity.Player
@@ -33,6 +35,7 @@ class ShopMenu(
 ) : NPCMenu(MenuType.SHOP) {
     private val plugin = SneakyNPCs.getInstance()
     private val pageState = ConcurrentHashMap<UUID, Int>()
+    private val sessionLedger = ConcurrentHashMap<UUID, ShopSessionLedger>()
 
     private val productSlots = listOf(
         3, 4, 5, 6, 7, 8,
@@ -45,8 +48,16 @@ class ShopMenu(
     private val walletSlot = 2
 
     override fun open(gui: NPCGui, player: Player, playerData: PlayerData?) {
+        sessionLedger.computeIfAbsent(player.uniqueId) { ShopSessionLedger() }
         val page = pageState[player.uniqueId] ?: 0
         render(gui, player, page.coerceIn(0, getMaxPage()))
+    }
+
+    override fun onClose(gui: NPCGui, player: Player) {
+        pageState.remove(player.uniqueId)
+        val ledger = sessionLedger.remove(player.uniqueId) ?: return
+        if (!ledger.hasActivity()) return
+        player.sendMessage(buildSessionTotalsMessage(ledger))
     }
 
     override fun onClick(gui: NPCGui, event: InventoryClickEvent) {
@@ -75,6 +86,10 @@ class ShopMenu(
 
         when (val result = plugin.shopTransactionService.purchase(player, shopItem, quantity)) {
             is ShopTransactionService.PurchaseResult.Success -> {
+                sessionLedger.computeIfAbsent(player.uniqueId) { ShopSessionLedger() }.apply {
+                    recordSpent(result.spent)
+                    recordEarned(result.earned)
+                }
                 player.playSound(player.location, "lom:buy", 1f, 1f)
                 player.sendMessage(buildPurchaseMessage(shopItem, quantity))
                 render(gui, player, currentPage)
@@ -214,6 +229,8 @@ class ShopMenu(
 
         when (val result = plugin.shopTransactionService.sell(player, playerData, gui.npc, offeredStack)) {
             is ShopTransactionService.SellResult.Success -> {
+                sessionLedger.computeIfAbsent(player.uniqueId) { ShopSessionLedger() }
+                    .recordEarned(result.earned)
                 onSuccess()
                 plugin.inventoryTransactionLogger.log(player = player, removedItems = listOf(offeredStack.clone()))
                 player.playSound(player.location, "lom:buy", 1f, 1f)
@@ -307,6 +324,35 @@ class ShopMenu(
                     if (char.isLowerCase()) char.titlecase() else char.toString()
                 }
             }
+    }
+
+    private fun buildSessionTotalsMessage(ledger: ShopSessionLedger): Component {
+        val lines = buildList {
+            if (ledger.spentTotals().isNotEmpty()) {
+                add(buildTotalsLine("Spent", ledger.spentTotals()))
+            }
+            if (ledger.earnedTotals().isNotEmpty()) {
+                add(buildTotalsLine("Earned", ledger.earnedTotals()))
+            }
+        }
+
+        return plugin.prefix.append(
+            Component.join(
+                JoinConfiguration.separator(Component.newline()),
+                Component.text("Shop session totals", NamedTextColor.YELLOW),
+                *lines.toTypedArray(),
+            )
+        )
+    }
+
+    private fun buildTotalsLine(label: String, totals: Map<String, Long>): Component {
+        val line = Component.text()
+            .append(Component.text("$label: ", NamedTextColor.GRAY))
+
+        val values = totals.toSortedMap().entries.map { (currencyId, amount) ->
+            Component.text("$amount ${formatCurrencyId(currencyId)}", NamedTextColor.GOLD)
+        }
+        return line.append(Component.join(JoinConfiguration.separator(Component.text(", ", NamedTextColor.GRAY)), values)).build()
     }
 
     private fun buildSellMessage(offeredStack: ItemStack, payoutAmount: Long, currencyId: String): Component {

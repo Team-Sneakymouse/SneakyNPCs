@@ -31,7 +31,10 @@ class ShopTransactionService(
     }
 
     sealed class PurchaseResult {
-        object Success : PurchaseResult()
+        data class Success(
+            val spent: List<CurrencyUnits>,
+            val earned: List<CurrencyUnits>,
+        ) : PurchaseResult()
         data class Failure(val message: String) : PurchaseResult()
     }
 
@@ -39,6 +42,7 @@ class ShopTransactionService(
         data class Success(
             val currencyId: String,
             val payoutAmount: Long,
+            val earned: List<CurrencyUnits>,
         ) : SellResult()
         data class Failure(val message: String) : SellResult()
     }
@@ -107,7 +111,16 @@ class ShopTransactionService(
             addedItems = listOf(purchasableStack.clone()),
         )
 
-        return PurchaseResult.Success
+        val earned = if (plan.changeUnits > 0L) {
+            listOf(CurrencyUnits(priceCurrency.id, plan.changeUnits))
+        } else {
+            emptyList()
+        }
+
+        return PurchaseResult.Success(
+            spent = plan.spends.map { CurrencyUnits(it.currencyId, it.units) },
+            earned = earned,
+        )
     }
 
     fun sell(player: Player, playerData: PlayerData, npc: NPC, offeredStack: ItemStack): SellResult {
@@ -165,7 +178,8 @@ class ShopTransactionService(
 
         return SellResult.Success(
             currencyId = priceCurrency.id,
-            payoutAmount = totalUnits
+            payoutAmount = totalUnits,
+            earned = listOf(CurrencyUnits(priceCurrency.id, totalUnits)),
         )
     }
 

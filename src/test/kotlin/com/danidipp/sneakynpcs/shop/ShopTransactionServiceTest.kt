@@ -60,6 +60,21 @@ class ShopTransactionServiceTest {
         assertEquals(0L, resolvedPlan.changeUnits)
     }
 
+    @Test
+    fun `sell value keeps full amount for non-durable items`() {
+        assertEquals(25L, service.calculateDurabilityAdjustedUnits(25L, 0L, 0L))
+    }
+
+    @Test
+    fun `sell value is reduced by remaining durability percentage`() {
+        assertEquals(75L, service.calculateDurabilityAdjustedUnits(100L, 100L, 25L))
+    }
+
+    @Test
+    fun `fully broken durable items sell for zero`() {
+        assertEquals(0L, service.calculateDurabilityAdjustedUnits(100L, 100L, 100L))
+    }
+
     private class FakeCurrencyLookup : CurrencyLookup {
         private val currencies = mapOf(
             "silver" to CurrencyDefinition("silver", null, null, "bankSilver", "penny", 50, true),

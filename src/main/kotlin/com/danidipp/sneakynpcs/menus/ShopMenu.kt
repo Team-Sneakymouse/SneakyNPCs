@@ -60,7 +60,7 @@ class ShopMenu(
         if (!isAllowedBuyClick(event.click)) return
 
         if (event.slot == pageToggleSlot && items.size > 24) {
-            val nextPage = if (currentPage == 0) 1 else 0
+            val nextPage = (currentPage + 1) % (getMaxPage() + 1)
             gui.playNavigationSound()
             render(gui, player, nextPage)
             return
@@ -115,8 +115,7 @@ class ShopMenu(
         }
 
         if (items.size > 24) {
-            val pageToggleModelData = if (page == 0) "arrow-right" else "arrow-left"
-            inv.setItem(pageToggleSlot, makeItem("lom:npcs/button", pageToggleModelData, hideTooltip))
+            inv.setItem(pageToggleSlot, makeItem("lom:npcs/pagecount", page + 1, hideTooltip))
         }
     }
 
@@ -362,5 +361,5 @@ class ShopMenu(
             }
     }
 
-    private fun getMaxPage(): Int = if (items.size > 24) 1 else 0
+    private fun getMaxPage(): Int = if (items.isEmpty()) 0 else (items.size - 1) / 24
 }

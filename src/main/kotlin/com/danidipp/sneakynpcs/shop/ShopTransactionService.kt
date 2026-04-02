@@ -9,6 +9,7 @@ import com.nisovin.magicspells.MagicSpells
 import org.bukkit.NamespacedKey
 import org.bukkit.entity.Player
 import org.bukkit.inventory.ItemStack
+import org.bukkit.inventory.meta.Damageable
 import org.bukkit.persistence.PersistentDataType
 import java.math.BigInteger
 
@@ -24,6 +25,9 @@ class ShopTransactionService(
     }
     private val storeAmountKey by lazy(LazyThreadSafetyMode.NONE) {
         NamespacedKey(MagicSpells.getInstance(), "magicspellpermanentdata_store_value_amount")
+    }
+    private val expiresAtKey by lazy(LazyThreadSafetyMode.NONE) {
+        NamespacedKey(MagicSpells.getInstance(), "expires_at")
     }
 
     sealed class PurchaseResult {
@@ -110,6 +114,9 @@ class ShopTransactionService(
         if (offeredStack.type.isAir || offeredStack.amount <= 0) {
             return SellResult.Failure("There is nothing to sell.")
         }
+        if (hasExpirySellBlock(offeredStack)) {
+            return SellResult.Failure("This item cannot be sold.")
+        }
 
         val storedValue = resolveStoredValue(offeredStack)
             ?: return SellResult.Failure("This item has no sell value.")
@@ -122,7 +129,8 @@ class ShopTransactionService(
             return SellResult.Failure("This NPC cannot buy that item.")
         }
 
-        val totalUnits = storedValue.amount.toLong() * offeredStack.amount.toLong()
+        val unitsPerItem = calculateSellUnitsPerItem(storedValue.amount.toLong(), offeredStack)
+        val totalUnits = unitsPerItem * offeredStack.amount.toLong()
         if (totalUnits <= 0L) {
             return SellResult.Failure("This item has an invalid sell value.")
         }
@@ -524,6 +532,32 @@ class ShopTransactionService(
         val amount = pdc.get(storeAmountKey, PersistentDataType.STRING)?.toIntOrNull() ?: return null
         if (amount <= 0) return null
         return ShopPrice(currencyId = currencyId, amount = amount)
+    }
+
+    private fun hasExpirySellBlock(stack: ItemStack): Boolean {
+        val pdc = stack.itemMeta?.persistentDataContainer ?: return false
+        return pdc.has(expiresAtKey, PersistentDataType.LONG) ||
+            pdc.has(expiresAtKey, PersistentDataType.INTEGER) ||
+            pdc.has(expiresAtKey, PersistentDataType.STRING)
+    }
+
+    internal fun calculateSellUnitsPerItem(baseUnits: Long, stack: ItemStack): Long {
+        if (baseUnits <= 0L) return 0L
+
+        val maxDurability = stack.type.maxDurability.toLong()
+        if (maxDurability <= 0L) return baseUnits
+
+        val damageable = stack.itemMeta as? Damageable ?: return baseUnits
+        return calculateDurabilityAdjustedUnits(baseUnits, maxDurability, damageable.damage.toLong())
+    }
+
+    internal fun calculateDurabilityAdjustedUnits(baseUnits: Long, maxDurability: Long, damage: Long): Long {
+        if (baseUnits <= 0L) return 0L
+        if (maxDurability <= 0L) return baseUnits
+
+        val clampedDamage = damage.coerceIn(0L, maxDurability)
+        val remainingDurability = maxDurability - clampedDamage
+        return (baseUnits * remainingDurability) / maxDurability
     }
 
     internal data class FundBucket(

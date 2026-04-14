@@ -327,32 +327,32 @@ class ShopMenu(
     }
 
     private fun buildSessionTotalsMessage(ledger: ShopSessionLedger): Component {
-        val lines = buildList {
-            if (ledger.spentTotals().isNotEmpty()) {
-                add(buildTotalsLine("Spent", ledger.spentTotals()))
-            }
-            if (ledger.earnedTotals().isNotEmpty()) {
-                add(buildTotalsLine("Earned", ledger.earnedTotals()))
-            }
-        }
-
-        return plugin.prefix.append(
-            Component.join(
-                JoinConfiguration.separator(Component.newline()),
-                Component.text("Shop session totals", NamedTextColor.YELLOW),
-                *lines.toTypedArray(),
-            )
+        return Component.join(JoinConfiguration.separator(Component.newline()),
+            *buildList {
+                if (ledger.spentTotals().isNotEmpty()) {
+                    add(buildTotalsLine("Total Spent: ", ledger.spentTotals()))
+                }
+                if (ledger.earnedTotals().isNotEmpty()) {
+                    add(buildTotalsLine("Total Earned: ", ledger.earnedTotals()))
+                }
+            }.toTypedArray(),
         )
     }
 
     private fun buildTotalsLine(label: String, totals: Map<String, Long>): Component {
-        val line = Component.text()
-            .append(Component.text("$label: ", NamedTextColor.GRAY))
+        val line = Component.text(label, NamedTextColor.YELLOW)
 
-        val values = totals.toSortedMap().entries.map { (currencyId, amount) ->
-            Component.text("$amount ${formatCurrencyId(currencyId)}", NamedTextColor.GOLD)
-        }
-        return line.append(Component.join(JoinConfiguration.separator(Component.text(", ", NamedTextColor.GRAY)), values)).build()
+        val formattedValues = totals.entries
+            .sortedWith(compareByDescending { // Sort by currency (high to low)
+                plugin.currencyGraphService.getAtomicValue(it.key) ?: java.math.BigInteger.ZERO
+            })
+            .map { (currencyId, amount) -> // Format each currency amount
+                Component.text("$amount ${formatCurrencyId(currencyId)}", NamedTextColor.GOLD)
+            }
+        return line.append(Component.join(
+            JoinConfiguration.separator(Component.text(", ", NamedTextColor.YELLOW)),
+            formattedValues)
+        )
     }
 
     private fun buildSellMessage(offeredStack: ItemStack, payoutAmount: Long, currencyId: String): Component {

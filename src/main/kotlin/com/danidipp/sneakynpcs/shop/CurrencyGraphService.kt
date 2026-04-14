@@ -47,10 +47,7 @@ class CurrencyGraphService(private val plugin: SneakyNPCs) : CurrencyLookup {
         val related = components[currencyId] ?: return emptyList()
         return related.mapNotNull(currencies::get)
             .filter { it.variableId != null }
-            .sortedWith(
-                compareByDescending<CurrencyDefinition> { atomicValues[it.id] ?: BigInteger.ZERO }
-                    .thenBy { it.id }
-            )
+            .sortedWith(compareByDescending { atomicValues[it.id] ?: BigInteger.ZERO })
     }
 
     override fun isConvertible(fromCurrencyId: String, toCurrencyId: String): Boolean =

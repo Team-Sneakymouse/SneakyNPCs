@@ -100,7 +100,7 @@ class NPCGui(val plugin: SneakyNPCs, val npc: NPC, val player: Player) : Invento
 
         @EventHandler
         fun onInventoryClick(event: InventoryClickEvent) {
-            SneakyNPCs.getInstance().logger.info("Clicked GUI ${event.inventory.holder?.javaClass?.simpleName} for ${event.whoClicked.name} at slot ${event.slot}")
+//            SneakyNPCs.getInstance().logger.info("Clicked GUI ${event.inventory.holder?.javaClass?.simpleName} for ${event.whoClicked.name} at slot ${event.slot}")
             if (event.inventory.holder !is NPCGui) return
             val gui = event.inventory.holder as NPCGui
 

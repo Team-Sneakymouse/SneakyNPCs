@@ -31,7 +31,7 @@ data class ShopMenuItem(
 
 class ShopMenu(
     private val items: List<ShopMenuItem>,
-    private val currencyId: String?,
+    private val bankDisplayCurrencyIds: List<String>,
 ) : NPCMenu(MenuType.SHOP) {
     private val plugin = SneakyNPCs.getInstance()
     private val pageState = ConcurrentHashMap<UUID, Int>()
@@ -245,11 +245,10 @@ class ShopMenu(
     }
 
     private fun buildCurrencyTooltipItem(player: Player): ItemStack? {
-        val selectedCurrencyId = currencyId ?: return null
-        val relatedCurrencies = plugin.currencyGraphService.getRelatedBankCurrencies(selectedCurrencyId)
-        if (relatedCurrencies.isEmpty()) return null
+        if (bankDisplayCurrencyIds.isEmpty()) return null
 
-        val lore = relatedCurrencies.map { currency ->
+        val lore = bankDisplayCurrencyIds.mapNotNull { currencyId ->
+            val currency = plugin.currencyGraphService.getCurrency(currencyId) ?: return@mapNotNull null
             val amount = plugin.balanceService.getBankCurrencyUnits(player, currency)
             Component.text()
                 .decoration(TextDecoration.ITALIC, false)

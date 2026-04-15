@@ -43,13 +43,6 @@ class CurrencyGraphService(private val plugin: SneakyNPCs) : CurrencyLookup {
         }
     }
 
-    fun getRelatedBankCurrencies(currencyId: String): List<CurrencyDefinition> {
-        val related = components[currencyId] ?: return emptyList()
-        return related.mapNotNull(currencies::get)
-            .filter { it.variableId != null }
-            .sortedWith(compareByDescending { atomicValues[it.id] ?: BigInteger.ZERO })
-    }
-
     override fun isConvertible(fromCurrencyId: String, toCurrencyId: String): Boolean =
         components[fromCurrencyId]?.contains(toCurrencyId) == true
 

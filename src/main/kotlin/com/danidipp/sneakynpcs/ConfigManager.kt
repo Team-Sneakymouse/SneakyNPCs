@@ -8,6 +8,7 @@ import com.danidipp.sneakynpcs.menus.QuestMenu
 import com.danidipp.sneakynpcs.menus.SelectionMenu
 import com.danidipp.sneakynpcs.menus.ShopMenu
 import com.danidipp.sneakynpcs.menus.ShopMenuItem
+import com.danidipp.sneakynpcs.shop.CurrencyLookup
 import com.danidipp.sneakynpcs.shop.ShopPrice
 import com.danidipp.sneakynpcs.shop.ShopRequirement
 import com.nisovin.magicspells.MagicSpells
@@ -73,6 +74,45 @@ private fun validationDetail(path: String, message: String): Component {
     }
     parts.add(Component.text(message, NamedTextColor.GRAY))
     return Component.join(JoinConfiguration.noSeparators(), parts)
+}
+
+private fun describeConfigValue(value: Any?): String = when (value) {
+    null -> "null"
+    is ConfigurationSection -> "ConfigurationSection(path='${value.currentPath}', keys=[${value.getKeys(false).sorted().joinToString(", ")}])"
+    is Map<*, *> -> "Map(keys=[${value.keys.filterIsInstance<String>().sorted().joinToString(", ")}])"
+    is List<*> -> "List(size=${value.size})"
+    is String -> "String('$value')"
+    else -> "${value::class.simpleName}($value)"
+}
+
+internal fun parseBankDisplayConfig(
+    rawBankDisplay: Any?,
+    path: String,
+    currencyLookup: CurrencyLookup,
+): Pair<List<String>, List<Component>> {
+    val errors = ValidationErrors()
+    val bankDisplay = when (rawBankDisplay) {
+        null -> emptyList()
+        is List<*> -> buildList {
+            for ((index, entry) in rawBankDisplay.withIndex()) {
+                when (entry) {
+                    !is String -> errors.add("$path.bankDisplay[$index]", "Invalid field. Expected string, got ${describeConfigValue(entry)}")
+                    else -> when {
+                        entry.isBlank() -> errors.add("$path.bankDisplay[$index]", "Cannot be blank")
+                        !currencyLookup.hasCurrency(entry) -> errors.add("$path.bankDisplay[$index]", "Unknown bank display currency '$entry'")
+                        currencyLookup.getCurrency(entry)?.variableId == null ->
+                            errors.add("$path.bankDisplay[$index]", "Currency '$entry' does not define a bank variable")
+                        else -> add(entry)
+                    }
+                }
+            }
+        }
+        else -> {
+            errors.add("$path.bankDisplay", "Invalid field. Expected list, got ${describeConfigValue(rawBankDisplay)}")
+            emptyList()
+        }
+    }
+    return Pair(bankDisplay, errors.toList())
 }
 
 private class ValidationErrors(
@@ -324,14 +364,7 @@ class ConfigManager(private val plugin: SneakyNPCs) {
         else -> null
     }
 
-    private fun describeValue(value: Any?): String = when (value) {
-        null -> "null"
-        is ConfigurationSection -> "ConfigurationSection(path='${value.currentPath}', keys=[${value.getKeys(false).sorted().joinToString(", ")}])"
-        is Map<*, *> -> "Map(keys=[${value.keys.filterIsInstance<String>().sorted().joinToString(", ")}])"
-        is List<*> -> "List(size=${value.size})"
-        is String -> "String('$value')"
-        else -> "${value::class.simpleName}($value)"
-    }
+    private fun describeValue(value: Any?): String = describeConfigValue(value)
 
     fun parseMenuNode(menuYaml: Map<*, *>, npcId: String, path: String): Pair<NPCMenu?, List<Component>> {
         val rawType = menuYaml["type"]
@@ -513,26 +546,18 @@ class ConfigManager(private val plugin: SneakyNPCs) {
 
     fun parseShopMenu(menuYaml: Map<*, *>, npcId: String, path: String): Pair<ShopMenu?, List<Component>> {
         val errors = ValidationErrors()
-        val allowedKeys = setOf("type", "items", "currency")
+        val allowedKeys = setOf("type", "items", "bankDisplay")
         val unknownKeys = menuYaml.keys.filterIsInstance<String>().filterNot { it in allowedKeys }
         if (unknownKeys.isNotEmpty()) {
             errors.add(path, "Unknown shop menu keys ${unknownKeys.joinToString(", ")}")
         }
 
-        val currencyId = when (val rawCurrency = menuYaml["currency"]) {
-            null -> null
-            is String -> rawCurrency.takeIf { it.isNotBlank() } ?: run {
-                errors.add("$path.currency", "Cannot be blank")
-                null
-            }
-            else -> {
-                errors.add("$path.currency", "Invalid field. Expected string, got ${describeValue(rawCurrency)}")
-                null
-            }
-        }
-        if (currencyId != null && !plugin.currencyGraphService.hasCurrency(currencyId)) {
-            errors.add("$path.currency", "Unknown shop currency '$currencyId'")
-        }
+        val (bankDisplayCurrencyIds, bankDisplayErrors) = parseBankDisplayConfig(
+            rawBankDisplay = menuYaml["bankDisplay"],
+            path = path,
+            currencyLookup = plugin.currencyGraphService,
+        )
+        errors.addAll(bankDisplayErrors)
 
         val itemsYaml = menuYaml["items"] as? List<*> ?: run {
             errors.add("$path.items", "Missing or invalid field")
@@ -579,7 +604,7 @@ class ConfigManager(private val plugin: SneakyNPCs) {
             return Pair(null, errors)
         }
 
-        return Pair(ShopMenu(items = items, currencyId = currencyId), errors.toList())
+        return Pair(ShopMenu(items = items, bankDisplayCurrencyIds = bankDisplayCurrencyIds), errors.toList())
     }
 
     fun parseShopMenuItem(itemYaml: Map<*, *>, npcId: String, path: String): Pair<ShopMenuItem?, List<Component>> {
@@ -709,4 +734,5 @@ class ConfigManager(private val plugin: SneakyNPCs) {
         }
         return Pair(CustomMenu(guiId), errors.toList())
     }
+
 }

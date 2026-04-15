@@ -23,6 +23,7 @@ class NPCGui(val plugin: SneakyNPCs, val npc: NPC, val player: Player) : Invento
     private val menuStack = ArrayDeque<NPCMenu>()
     private var menu: NPCMenu = npc.rootMenu
     private var reopenOnClose = true
+    private var disposed = false
 
     init {
         menuStack.addLast(npc.rootMenu)
@@ -68,11 +69,15 @@ class NPCGui(val plugin: SneakyNPCs, val npc: NPC, val player: Player) : Invento
     }
 
     fun closeAllLevels() {
+        if (disposed) return
+        disposed = true
         reopenOnClose = false
         closeCurrentMenu()
         menuStack.clear()
         player.closeInventory()
     }
+
+    fun isDisposed(): Boolean = disposed
 
     fun playNavigationSound() {
         player.playSound(player.location, "lom:ui.button.click", 1f, 1f)
@@ -144,4 +149,3 @@ class NPCGui(val plugin: SneakyNPCs, val npc: NPC, val player: Player) : Invento
         }
     }
 }
-

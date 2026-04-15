@@ -37,3 +37,8 @@ rootMenu:
       gui: lumberjack_training
     - type: custom
       gui: borrow_horn
+
+# External menu example:
+# rootMenu:
+#   type: external
+#   magicspell: wizard_menu

@@ -13,7 +13,7 @@ import org.bukkit.entity.Player
 import org.bukkit.event.inventory.InventoryClickEvent
 import org.bukkit.inventory.ItemStack
 
-enum class MenuType { SELECTION, QUEST, SHOP, CUSTOM}
+enum class MenuType { SELECTION, QUEST, SHOP, CUSTOM, EXTERNAL}
 sealed class NPCMenu(val type: MenuType) {
 
     abstract fun open(gui: NPCGui, player: Player, playerData: PlayerData?)

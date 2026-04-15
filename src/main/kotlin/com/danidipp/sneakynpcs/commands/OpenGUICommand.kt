@@ -38,7 +38,9 @@ object OpenGUICommand {
                     val player: Player = playerResolver.resolve(ctx.getSource()).first()
 
                     val gui = NPCGui(plugin, npc, player)
-                    player.openInventory(gui.inventory)
+                    if (!gui.isDisposed()) {
+                        player.openInventory(gui.inventory)
+                    }
                     Command.SINGLE_SUCCESS
                 }
             )
@@ -54,7 +56,9 @@ object OpenGUICommand {
                 }
 
                 val gui = NPCGui(plugin, npc, player)
-                player.openInventory(gui.inventory)
+                if (!gui.isDisposed()) {
+                    player.openInventory(gui.inventory)
+                }
                 Command.SINGLE_SUCCESS
             }
         )

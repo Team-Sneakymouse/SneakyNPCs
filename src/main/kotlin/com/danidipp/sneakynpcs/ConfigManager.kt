@@ -1,6 +1,7 @@
 package com.danidipp.sneakynpcs
 
 import com.danidipp.sneakynpcs.menus.CustomMenu
+import com.danidipp.sneakynpcs.menus.ExternalMenu
 import com.danidipp.sneakynpcs.menus.NPCMenu
 import com.danidipp.sneakynpcs.menus.NPCQuest
 import com.danidipp.sneakynpcs.menus.NPCQuestItem
@@ -113,6 +114,34 @@ internal fun parseBankDisplayConfig(
         }
     }
     return Pair(bankDisplay, errors.toList())
+}
+
+internal fun parseExternalMenuConfig(
+    menuYaml: Map<*, *>,
+    path: String,
+    spellLookup: (String) -> Any?,
+): Pair<String?, List<Component>> {
+    val errors = ValidationErrors()
+    val allowedKeys = setOf("type", "magicspell")
+    val unknownKeys = menuYaml.keys.filterIsInstance<String>().filterNot { it in allowedKeys }
+    if (unknownKeys.isNotEmpty()) {
+        errors.add(path, "Unknown external menu keys ${unknownKeys.joinToString(", ")}")
+    }
+
+    val magicSpellId = menuYaml["magicspell"] as? String ?: run {
+        errors.add("$path.magicspell", "Missing or invalid field")
+        return Pair(null, errors.toList())
+    }
+    if (magicSpellId.isBlank()) {
+        errors.add("$path.magicspell", "Cannot be blank")
+        return Pair(null, errors.toList())
+    }
+    if (spellLookup(magicSpellId) == null) {
+        errors.add("$path.magicspell", "Unknown MagicSpell internal spell id '$magicSpellId'")
+        return Pair(null, errors.toList())
+    }
+
+    return Pair(magicSpellId, errors.toList())
 }
 
 private class ValidationErrors(
@@ -391,6 +420,7 @@ class ConfigManager(private val plugin: SneakyNPCs) {
             "quest" -> parseQuestMenu(menuYaml, npcId, path)
             "shop" -> parseShopMenu(menuYaml, npcId, path)
             "custom" -> parseCustomMenu(menuYaml, npcId, path)
+            "external" -> parseExternalMenu(menuYaml, npcId, path)
             else -> Pair(null, listOf(validationDetail("$path.type", "Unknown menu type '$type'")))
         }
     }
@@ -735,4 +765,13 @@ class ConfigManager(private val plugin: SneakyNPCs) {
         return Pair(CustomMenu(guiId), errors.toList())
     }
 
+    fun parseExternalMenu(menuYaml: Map<*, *>, npcId: String, path: String): Pair<ExternalMenu?, List<Component>> {
+        val (magicSpellId, errors) = parseExternalMenuConfig(menuYaml, path) { spellId ->
+            MagicSpells.getSpellByInternalName(spellId)
+        }
+        if (magicSpellId == null) {
+            return Pair(null, errors)
+        }
+        return Pair(ExternalMenu(magicSpellId), errors)
+    }
 }

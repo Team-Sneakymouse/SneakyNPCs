@@ -4,6 +4,7 @@ import com.danidipp.sneakynpcs.NPCGui
 import com.danidipp.sneakynpcs.PlayerData
 import com.danidipp.sneakynpcs.shop.ShopMessageFormatter
 import com.danidipp.sneakynpcs.shop.ShopPrice
+import me.clip.placeholderapi.PlaceholderAPI
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.NamedTextColor
 import net.kyori.adventure.text.format.TextDecoration
@@ -43,6 +44,7 @@ class TailorMenu(
         val npc = gui.npc
         val hideTooltip = shouldHideTooltip(player)
         inv.clear()
+        PlaceholderAPI.setPlaceholders(player, "%sneakymannequins_skin_session_uid%")
         inv.setItem(0, makeItem(npc.guiModelKey, "alt", hideTooltip))
         inv.setItem(1, makeItem(npc.guiModelKey, "tailor", hideTooltip))
         inv.setItem(14, buildButtonItem(shirt))
@@ -54,6 +56,13 @@ class TailorMenu(
         val player = event.whoClicked as? Player ?: return
         val command = buildTailorCommand(event.slot) ?: return
         val buttonConfig = getButtonConfig(event.slot) ?: return
+        val skinUid = PlaceholderAPI.setPlaceholders(player, "%sneakymannequins_skin_session_uid%")
+        if (skinUid.isEmpty()) {
+            player.sendMessage(gui.plugin.prefix.append(
+                Component.text("Current skin is unsupported. Please apply a skin at the mannequin.", NamedTextColor.RED)
+            ))
+            return
+        }
         if (!gui.plugin.server.pluginManager.isPluginEnabled("SneakyMannequins")) {
             player.sendMessage(
                 gui.plugin.prefix.append(

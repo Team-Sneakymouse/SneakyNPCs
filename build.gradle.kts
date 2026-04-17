@@ -18,6 +18,7 @@ dependencies {
     compileOnly("io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT")
  	compileOnly("me.clip:placeholderapi:2.11.5")
 	compileOnly(files("libs/MagicSpells-4.0-Beta-13.jar"))
+	compileOnly(files("libs/SneakyMannequins-Plugin-1.0.0.jar"))
 	testImplementation(kotlin("test"))
 	testCompileOnly("io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT")
 	testCompileOnly(files("libs/MagicSpells-4.0-Beta-13.jar"))

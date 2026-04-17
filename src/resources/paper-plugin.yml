@@ -13,3 +13,6 @@ dependencies:
     CoreProtect:
       load: BEFORE
       required: false
+    SneakyMannequins:
+      load: BEFORE
+      required: false

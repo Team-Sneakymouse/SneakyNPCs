@@ -9,6 +9,8 @@ import com.danidipp.sneakynpcs.menus.QuestMenu
 import com.danidipp.sneakynpcs.menus.SelectionMenu
 import com.danidipp.sneakynpcs.menus.ShopMenu
 import com.danidipp.sneakynpcs.menus.ShopMenuItem
+import com.danidipp.sneakynpcs.menus.TailorButtonConfig
+import com.danidipp.sneakynpcs.menus.TailorMenu
 import com.danidipp.sneakynpcs.shop.CurrencyLookup
 import com.danidipp.sneakynpcs.shop.ShopPrice
 import com.danidipp.sneakynpcs.shop.ShopRequirement
@@ -142,6 +144,109 @@ internal fun parseExternalMenuConfig(
     }
 
     return Pair(magicSpellId, errors.toList())
+}
+
+internal fun parseTailorMenuConfig(
+    menuYaml: Map<*, *>,
+    path: String,
+    currencyLookup: CurrencyLookup,
+): Pair<TailorMenu?, List<Component>> {
+    val errors = ValidationErrors()
+    val allowedKeys = setOf("type", "shirt", "pants", "both")
+    val unknownKeys = menuYaml.keys.filterIsInstance<String>().filterNot { it in allowedKeys }
+    if (unknownKeys.isNotEmpty()) {
+        errors.add(path, "Unknown tailor menu keys ${unknownKeys.joinToString(", ")}")
+    }
+
+    val (shirt, shirtErrors) = parseTailorButtonConfig(menuYaml["shirt"], "$path.shirt", currencyLookup)
+    val (pants, pantsErrors) = parseTailorButtonConfig(menuYaml["pants"], "$path.pants", currencyLookup)
+    val (both, bothErrors) = parseTailorButtonConfig(menuYaml["both"], "$path.both", currencyLookup)
+    errors.addAll(shirtErrors)
+    errors.addAll(pantsErrors)
+    errors.addAll(bothErrors)
+
+    if (errors.isNotEmpty()) {
+        return Pair(null, errors.toList())
+    }
+
+    return Pair(TailorMenu(shirt = shirt!!, pants = pants!!, both = both!!), errors.toList())
+}
+
+internal fun parseTailorButtonConfig(
+    rawButton: Any?,
+    path: String,
+    currencyLookup: CurrencyLookup,
+): Pair<TailorButtonConfig?, List<Component>> {
+    val errors = ValidationErrors()
+    val buttonYaml = when (rawButton) {
+        is Map<*, *> -> rawButton
+        is ConfigurationSection -> rawButton.getValues(false)
+        else -> null
+    } ?: run {
+        errors.add(path, "Missing or invalid section")
+        return Pair(null, errors.toList())
+    }
+
+    val allowedKeys = setOf("title", "lore", "priceCurrency", "priceAmount")
+    val unknownKeys = buttonYaml.keys.filterIsInstance<String>().filterNot { it in allowedKeys }
+    if (unknownKeys.isNotEmpty()) {
+        errors.add(path, "Unknown tailor button keys ${unknownKeys.joinToString(", ")}")
+    }
+
+    val title = buttonYaml["title"] as? String
+    if (title.isNullOrBlank()) {
+        errors.add("$path.title", "Missing or invalid field")
+    }
+
+    val lore = when (val rawLore = buttonYaml["lore"]) {
+        is List<*> -> buildList {
+            for ((index, entry) in rawLore.withIndex()) {
+                when (entry) {
+                    is String -> add(entry)
+                    else -> errors.add("$path.lore[$index]", "Invalid field. Expected string, got ${describeConfigValue(entry)}")
+                }
+            }
+        }
+        null -> {
+            errors.add("$path.lore", "Missing or invalid field")
+            emptyList()
+        }
+        else -> {
+            errors.add("$path.lore", "Invalid field. Expected list, got ${describeConfigValue(rawLore)}")
+            emptyList()
+        }
+    }
+
+    val priceCurrency = buttonYaml["priceCurrency"] as? String
+    if (priceCurrency.isNullOrBlank()) {
+        errors.add("$path.priceCurrency", "Missing or invalid field")
+    } else if (!currencyLookup.hasCurrency(priceCurrency)) {
+        errors.add("$path.priceCurrency", "Unknown currency '$priceCurrency'")
+    }
+
+    val priceAmount = when (val rawAmount = buttonYaml["priceAmount"]) {
+        is Int -> rawAmount
+        is Number -> rawAmount.toInt()
+        else -> null
+    }
+    if (priceAmount == null) {
+        errors.add("$path.priceAmount", "Missing or invalid field")
+    } else if (priceAmount <= 0) {
+        errors.add("$path.priceAmount", "Must be > 0")
+    }
+
+    if (errors.isNotEmpty()) {
+        return Pair(null, errors.toList())
+    }
+
+    return Pair(
+        TailorButtonConfig(
+            title = title!!,
+            lore = lore,
+            price = ShopPrice(currencyId = priceCurrency!!, amount = priceAmount!!),
+        ),
+        errors.toList()
+    )
 }
 
 private class ValidationErrors(
@@ -421,6 +526,7 @@ class ConfigManager(private val plugin: SneakyNPCs) {
             "shop" -> parseShopMenu(menuYaml, npcId, path)
             "custom" -> parseCustomMenu(menuYaml, npcId, path)
             "external" -> parseExternalMenu(menuYaml, npcId, path)
+            "tailor" -> parseTailorMenu(menuYaml, path)
             else -> Pair(null, listOf(validationDetail("$path.type", "Unknown menu type '$type'")))
         }
     }
@@ -773,5 +879,9 @@ class ConfigManager(private val plugin: SneakyNPCs) {
             return Pair(null, errors)
         }
         return Pair(ExternalMenu(magicSpellId), errors)
+    }
+
+    fun parseTailorMenu(menuYaml: Map<*, *>, path: String): Pair<TailorMenu?, List<Component>> {
+        return parseTailorMenuConfig(menuYaml, path, plugin.currencyGraphService)
     }
 }

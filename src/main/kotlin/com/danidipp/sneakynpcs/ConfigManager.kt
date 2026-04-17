@@ -249,6 +249,84 @@ internal fun parseTailorButtonConfig(
     )
 }
 
+private fun parseLongValue(raw: Any?): Long? = when (raw) {
+    is Int -> raw.toLong()
+    is Long -> raw
+    is String -> raw.toLongOrNull()
+    is Number -> raw.toLong()
+    else -> null
+}
+
+private fun parseIntValue(raw: Any?): Int? = when (raw) {
+    is Int -> raw
+    is Long -> raw.toInt()
+    is String -> raw.toIntOrNull()
+    is Number -> raw.toInt()
+    else -> null
+}
+
+internal fun parseShopItemLimitConfig(
+    rawLimits: Any?,
+    path: String,
+    maxStackSize: Int,
+): Pair<ShopItemLimitConfig?, List<Component>> {
+    val errors = ValidationErrors()
+    val limitsYaml = when (rawLimits) {
+        is Map<*, *> -> rawLimits
+        is ConfigurationSection -> rawLimits.getValues(false)
+        else -> null
+    } ?: run {
+        errors.add(path, "Missing or invalid section")
+        return Pair(null, errors.toList())
+    }
+
+    val allowedKeys = setOf("maxQuantity", "restockInterval", "restockAmount")
+    val unknownKeys = limitsYaml.keys.filterIsInstance<String>().filterNot { it in allowedKeys }
+    if (unknownKeys.isNotEmpty()) {
+        errors.add(path, "Unknown limits keys ${unknownKeys.joinToString(", ")}")
+    }
+
+    val maxQuantity = parseIntValue(limitsYaml["maxQuantity"])
+    if (maxQuantity == null) {
+        errors.add("$path.maxQuantity", "Missing or invalid field")
+    } else if (maxQuantity <= 0) {
+        errors.add("$path.maxQuantity", "Must be > 0")
+    } else if (maxQuantity > maxStackSize.coerceAtLeast(1)) {
+        errors.add("$path.maxQuantity", "Must be <= item max stack size ${maxStackSize.coerceAtLeast(1)}")
+    }
+
+    val restockInterval = parseLongValue(limitsYaml["restockInterval"])
+    if (restockInterval == null) {
+        errors.add("$path.restockInterval", "Missing or invalid field")
+    } else if (restockInterval < 0L) {
+        errors.add("$path.restockInterval", "Must be >= 0")
+    }
+
+    val restockAmount = parseIntValue(limitsYaml["restockAmount"])
+    if (restockAmount == null) {
+        errors.add("$path.restockAmount", "Missing or invalid field")
+    } else if (restockAmount < 0) {
+        errors.add("$path.restockAmount", "Must be >= 0")
+    }
+
+    if (restockAmount != null && restockAmount > 0 && (restockInterval == null || restockInterval <= 0L)) {
+        errors.add("$path.restockInterval", "Must be > 0 when 'restockAmount' is > 0")
+    }
+
+    if (errors.isNotEmpty()) {
+        return Pair(null, errors.toList())
+    }
+
+    return Pair(
+        ShopItemLimitConfig(
+            maxQuantity = maxQuantity!!,
+            restockIntervalSeconds = restockInterval!!,
+            restockAmount = restockAmount!!
+        ),
+        errors.toList()
+    )
+}
+
 private class ValidationErrors(
     private val entries: MutableList<Component> = mutableListOf()
 ) : List<Component> by entries {
@@ -745,7 +823,7 @@ class ConfigManager(private val plugin: SneakyNPCs) {
 
     fun parseShopMenuItem(itemYaml: Map<*, *>, npcId: String, path: String): Pair<ShopMenuItem?, List<Component>> {
         val errors = ValidationErrors()
-        val allowedKeys = setOf("item", "buyStacks", "requirements")
+        val allowedKeys = setOf("item", "buyStacks", "requirements", "limits")
         val unknownKeys = itemYaml.keys.filterIsInstance<String>().filterNot { it in allowedKeys }
         if (unknownKeys.isNotEmpty()) {
             errors.add(path, "Unknown item keys ${unknownKeys.joinToString(", ")}")
@@ -840,16 +918,33 @@ class ConfigManager(private val plugin: SneakyNPCs) {
             return Pair(null, errors)
         }
 
+        val (limits, limitErrors) = when (val rawLimits = itemYaml["limits"]) {
+            null -> Pair(null, emptyList())
+            else -> parseShopItemLimitConfig(rawLimits, "$path.limits", magicItem.itemStack.maxStackSize)
+        }
+        if (limitErrors.isNotEmpty()) {
+            errors.addAll(limitErrors)
+            return Pair(null, errors.toList())
+        }
+
         return Pair(
             ShopMenuItem(
                 itemId = itemId,
                 magicItem = magicItem,
+                stockEntryId = pathToStockEntryId(path),
                 buyStacks = buyStacks,
                 requirements = requirements,
-                price = ShopPrice(currencyId = currencyId, amount = amount)
+                price = ShopPrice(currencyId = currencyId, amount = amount),
+                limits = limits,
             ),
             errors.toList()
         )
+    }
+
+    private fun pathToStockEntryId(path: String): String {
+        return path
+            .replace(".", "/")
+            .replace(Regex("\\[(\\d+)]"), "/$1")
     }
 
     fun parseCustomMenu(menuYaml: Map<*, *>, npcId: String, path: String): Pair<CustomMenu?, List<Component>> {

@@ -18,6 +18,7 @@ class ShopTransactionService(
     private val balanceService: BalanceService,
     private val requirementService: RequirementService,
     private val npcWalletService: NpcWalletService,
+    private val shopItemStockService: ShopItemStockService,
     private val inventoryTransactionLogger: InventoryTransactionLogger,
 ) {
     private val storeCurrencyKey by lazy(LazyThreadSafetyMode.NONE) {
@@ -34,6 +35,7 @@ class ShopTransactionService(
         data class Success(
             val spent: List<CurrencyUnits>,
             val earned: List<CurrencyUnits>,
+            val deliveredQuantity: Int,
         ) : PurchaseResult()
         data class Failure(val message: String) : PurchaseResult()
     }
@@ -47,25 +49,99 @@ class ShopTransactionService(
         data class Failure(val message: String) : SellResult()
     }
 
-    fun purchase(player: Player, shopItem: ShopMenuItem, quantity: Int): PurchaseResult {
+    fun charge(player: Player, price: ShopPrice): PurchaseResult {
+        val priceCurrency = currencyGraphService.getCurrency(price.currencyId)
+            ?: return PurchaseResult.Failure("This action has an invalid currency.")
+        val priceAtomic = currencyGraphService.getAtomicValue(price.currencyId)
+            ?: return PurchaseResult.Failure("This action has an invalid currency graph.")
+
+        val totalAmount = price.amount.toLong()
+        if (totalAmount <= 0L) return PurchaseResult.Failure("Invalid configured price.")
+        val requiredAtomic = priceAtomic.multiply(BigInteger.valueOf(totalAmount))
+
+        val plan = buildPaymentPlan(player, priceCurrency, requiredAtomic, priceAtomic)
+            ?: return PurchaseResult.Failure("You don't have enough money.")
+
+        for (spend in plan.spends.filter { it.source == PaymentSource.INVENTORY }) {
+            val currency = currencyGraphService.getCurrency(spend.currencyId)
+                ?: return PurchaseResult.Failure("Currency disappeared during payment.")
+            if (!balanceService.removeInventoryCurrencyUnits(player, currency, spend.units)) {
+                return PurchaseResult.Failure("Failed to remove currency items from inventory.")
+            }
+        }
+
+        for (spend in plan.spends.filter { it.source == PaymentSource.BANK }) {
+            val currency = currencyGraphService.getCurrency(spend.currencyId)
+                ?: return PurchaseResult.Failure("Currency disappeared during payment.")
+            if (!balanceService.removeBankCurrencyUnits(player, currency, spend.units)) {
+                return PurchaseResult.Failure("Failed to remove bank balance.")
+            }
+        }
+
+        if (plan.changeUnits > 0L) {
+            balanceService.addBankCurrencyUnits(player, priceCurrency, plan.changeUnits)
+        }
+
+        val removedInventoryItems = buildList {
+            for (spend in plan.spends.filter { it.source == PaymentSource.INVENTORY }) {
+                val currency = currencyGraphService.getCurrency(spend.currencyId) ?: continue
+                val template = currency.itemMagicItem?.itemStack ?: continue
+                addAll(InventoryAuditItems.split(template, spend.units))
+            }
+        }
+        if (removedInventoryItems.isNotEmpty()) {
+            inventoryTransactionLogger.log(
+                player = player,
+                removedItems = removedInventoryItems,
+            )
+        }
+
+        val earned = if (plan.changeUnits > 0L) {
+            listOf(CurrencyUnits(priceCurrency.id, plan.changeUnits))
+        } else {
+            emptyList()
+        }
+
+        return PurchaseResult.Success(
+            spent = plan.spends.map { CurrencyUnits(it.currencyId, it.units) },
+            earned = earned,
+            deliveredQuantity = 0,
+        )
+    }
+
+    fun purchase(
+        player: Player,
+        playerData: PlayerData,
+        npc: NPC,
+        shopItem: ShopMenuItem,
+        quantity: Int,
+    ): PurchaseResult {
         if (quantity <= 0) return PurchaseResult.Failure("Invalid quantity.")
         if (!requirementService.requirementsMet(player, shopItem.requirements)) {
             return PurchaseResult.Failure("You do not meet the requirements.")
         }
 
+        val effectiveQuantity = resolveEffectivePurchaseQuantity(
+            playerData = playerData,
+            npcId = npc.id,
+            stockEntryId = shopItem.stockEntryId,
+            limits = shopItem.limits,
+            requestedQuantity = quantity,
+        )
+            ?: return PurchaseResult.Failure("This item is sold out.")
         val priceCurrency = currencyGraphService.getCurrency(shopItem.price.currencyId)
             ?: return PurchaseResult.Failure("This item has an invalid currency.")
         val priceAtomic = currencyGraphService.getAtomicValue(shopItem.price.currencyId)
             ?: return PurchaseResult.Failure("This item has an invalid currency graph.")
 
-        val totalAmount = shopItem.price.amount.toLong() * quantity.toLong()
+        val totalAmount = shopItem.price.amount.toLong() * effectiveQuantity.toLong()
         if (totalAmount <= 0L) return PurchaseResult.Failure("Invalid configured price.")
         val requiredAtomic = priceAtomic.multiply(BigInteger.valueOf(totalAmount))
 
         val purchasableStack = shopItem.magicItem.itemStack.clone().apply {
-            amount = quantity
+            amount = effectiveQuantity
         }
-        if (!balanceService.canFitItem(player.inventory, purchasableStack, quantity)) {
+        if (!balanceService.canFitItem(player.inventory, purchasableStack, effectiveQuantity)) {
             return PurchaseResult.Failure("Not enough inventory space.")
         }
 
@@ -98,6 +174,17 @@ class ShopTransactionService(
             return PurchaseResult.Failure("Not enough inventory space.")
         }
 
+        when (val stockResult = shopItemStockService.consumeForPurchase(
+            playerData = playerData,
+            npcId = npc.id,
+            stockEntryId = shopItem.stockEntryId,
+            limits = shopItem.limits,
+            requestedQuantity = effectiveQuantity,
+        )) {
+            is ShopItemStockService.ConsumeResult.Failure -> return PurchaseResult.Failure(stockResult.message)
+            is ShopItemStockService.ConsumeResult.Success -> Unit
+        }
+
         val removedInventoryItems = buildList {
             for (spend in plan.spends.filter { it.source == PaymentSource.INVENTORY }) {
                 val currency = currencyGraphService.getCurrency(spend.currencyId) ?: continue
@@ -120,7 +207,28 @@ class ShopTransactionService(
         return PurchaseResult.Success(
             spent = plan.spends.map { CurrencyUnits(it.currencyId, it.units) },
             earned = earned,
+            deliveredQuantity = effectiveQuantity,
         )
+    }
+
+    internal fun resolveEffectivePurchaseQuantity(
+        playerData: PlayerData,
+        npcId: String,
+        stockEntryId: String,
+        limits: com.danidipp.sneakynpcs.ShopItemLimitConfig?,
+        requestedQuantity: Int,
+        nowMillis: Long = System.currentTimeMillis(),
+    ): Int? {
+        if (requestedQuantity <= 0) return null
+        val remainingQuantity = shopItemStockService.getRemainingQuantity(
+            playerData = playerData,
+            npcId = npcId,
+            stockEntryId = stockEntryId,
+            limits = limits,
+            nowMillis = nowMillis,
+        )
+        if (remainingQuantity <= 0) return null
+        return minOf(requestedQuantity, remainingQuantity)
     }
 
     fun sell(player: Player, playerData: PlayerData, npc: NPC, offeredStack: ItemStack): SellResult {

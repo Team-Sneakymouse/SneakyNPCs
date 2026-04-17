@@ -33,6 +33,10 @@ rootMenu:
             - variable: lumberjack_level
               min: 1
         - item: item-wood-oak
+          limits:
+            maxQuantity: 5
+            restockInterval: 1800
+            restockAmount: 1
     - type: custom
       gui: lumberjack_training
     - type: custom

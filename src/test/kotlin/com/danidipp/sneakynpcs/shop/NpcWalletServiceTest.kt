@@ -117,7 +117,8 @@ class NpcWalletServiceTest {
             uuid = UUID.randomUUID(),
             completedQuests = mutableSetOf(),
             reputation = mutableMapOf(),
-            npcWallets = mutableMapOf()
+            npcWallets = mutableMapOf(),
+            shopItemStocks = mutableMapOf(),
         )
     }
 

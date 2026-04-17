@@ -2,16 +2,19 @@ package com.danidipp.sneakynpcs.menus
 
 import com.danidipp.sneakynpcs.NPCGui
 import com.danidipp.sneakynpcs.PlayerData
+import com.danidipp.sneakynpcs.ShopItemLimitConfig
 import com.danidipp.sneakynpcs.SneakyNPCs
 import com.danidipp.sneakynpcs.shop.ShopPrice
+import com.danidipp.sneakynpcs.shop.ShopMessageFormatter
 import com.danidipp.sneakynpcs.shop.ShopRequirement
 import com.danidipp.sneakynpcs.shop.ShopSessionLedger
 import com.danidipp.sneakynpcs.shop.ShopTransactionService
 import com.nisovin.magicspells.util.magicitems.MagicItem
+import io.papermc.paper.datacomponent.DataComponentTypes
 import net.kyori.adventure.text.Component
-import net.kyori.adventure.text.JoinConfiguration
 import net.kyori.adventure.text.format.NamedTextColor
 import net.kyori.adventure.text.format.TextDecoration
+import org.bukkit.NamespacedKey
 import org.bukkit.entity.Player
 import org.bukkit.event.inventory.InventoryAction
 import org.bukkit.event.inventory.ClickType
@@ -24,9 +27,11 @@ import java.util.concurrent.ConcurrentHashMap
 data class ShopMenuItem(
     val itemId: String,
     val magicItem: MagicItem,
+    val stockEntryId: String,
     val buyStacks: Boolean,
     val requirements: List<ShopRequirement>,
     val price: ShopPrice,
+    val limits: ShopItemLimitConfig?,
 )
 
 class ShopMenu(
@@ -50,14 +55,14 @@ class ShopMenu(
     override fun open(gui: NPCGui, player: Player, playerData: PlayerData?) {
         sessionLedger.computeIfAbsent(player.uniqueId) { ShopSessionLedger() }
         val page = pageState[player.uniqueId] ?: 0
-        render(gui, player, page.coerceIn(0, getMaxPage()))
+        render(gui, player, page.coerceIn(0, getMaxPage()), playerData)
     }
 
     override fun onClose(gui: NPCGui, player: Player) {
         pageState.remove(player.uniqueId)
         val ledger = sessionLedger.remove(player.uniqueId) ?: return
         if (!ledger.hasActivity()) return
-        player.sendMessage(buildSessionTotalsMessage(ledger))
+        player.sendMessage(ShopMessageFormatter.buildSessionTotalsMessage(plugin.currencyGraphService, ledger))
     }
 
     override fun onClick(gui: NPCGui, event: InventoryClickEvent) {
@@ -83,16 +88,22 @@ class ShopMenu(
         val itemIndex = currentPage * 24 + slotIndex
         val shopItem = items.getOrNull(itemIndex) ?: return
         val quantity = getClickQuantity(event, shopItem)
+        val playerData = plugin.persistenceManager.dataCache[player.uniqueId]
+        if (playerData == null) {
+            player.playSound(player.location, "lom:fail_wrong", 1f, 1f)
+            player.sendMessage(plugin.prefix.append(Component.text("Failed to fetch your data. Please tell Dani.", NamedTextColor.RED)))
+            return
+        }
 
-        when (val result = plugin.shopTransactionService.purchase(player, shopItem, quantity)) {
+        when (val result = plugin.shopTransactionService.purchase(player, playerData, gui.npc, shopItem, quantity)) {
             is ShopTransactionService.PurchaseResult.Success -> {
                 sessionLedger.computeIfAbsent(player.uniqueId) { ShopSessionLedger() }.apply {
                     recordSpent(result.spent)
                     recordEarned(result.earned)
                 }
                 player.playSound(player.location, "lom:buy", 1f, 1f)
-                player.sendMessage(buildPurchaseMessage(shopItem, quantity))
-                render(gui, player, currentPage)
+                player.sendMessage(buildPurchaseMessage(shopItem, result.deliveredQuantity))
+                render(gui, player, currentPage, playerData)
             }
             is ShopTransactionService.PurchaseResult.Failure -> {
                 player.playSound(player.location, "lom:fail_wrong", 1f, 1f)
@@ -105,12 +116,13 @@ class ShopMenu(
         }
     }
 
-    private fun render(gui: NPCGui, player: Player, requestedPage: Int) {
+    private fun render(gui: NPCGui, player: Player, requestedPage: Int, playerData: PlayerData? = null) {
         val page = requestedPage.coerceIn(0, getMaxPage())
         pageState[player.uniqueId] = page
 
         val inv = gui.inventory
         val npc = gui.npc
+        val resolvedPlayerData = playerData ?: plugin.persistenceManager.dataCache[player.uniqueId]
         val hideTooltip = shouldHideTooltip(player)
         inv.clear()
         for (slot in 0 until inv.size) {
@@ -126,7 +138,7 @@ class ShopMenu(
         val pageItems = items.drop(pageStart).take(24)
         for ((index, shopItem) in pageItems.withIndex()) {
             val slot = productSlots[index]
-            inv.setItem(slot, shopItem.magicItem.itemStack.clone())
+            inv.setItem(slot, buildDisplayItem(npc, resolvedPlayerData, shopItem))
         }
 
         if (items.size > 24) {
@@ -138,6 +150,31 @@ class ShopMenu(
         if (!shopItem.buyStacks) return 1
         if (!event.isShiftClick) return 1
         return shopItem.magicItem.itemStack.maxStackSize.coerceAtLeast(1)
+    }
+
+    private fun buildDisplayItem(
+        npc: com.danidipp.sneakynpcs.NPC,
+        playerData: PlayerData?,
+        shopItem: ShopMenuItem,
+    ): ItemStack {
+        val stack = shopItem.magicItem.itemStack.clone()
+        val limits = shopItem.limits ?: return stack
+        val resolvedPlayerData = playerData ?: return stack.apply { amount = limits.maxQuantity }
+        val remainingQuantity = plugin.shopItemStockService.getRemainingQuantity(
+            playerData = resolvedPlayerData,
+            npcId = npc.id,
+            stockEntryId = shopItem.stockEntryId,
+            limits = limits,
+        )
+
+        if (remainingQuantity <= 0) {
+            stack.amount = 1
+            stack.setData(DataComponentTypes.ITEM_MODEL, NamespacedKey.minecraft("barrier"))
+            return stack
+        }
+
+        stack.amount = remainingQuantity
+        return stack
     }
 
     fun onPlayerInventoryClick(gui: NPCGui, event: InventoryClickEvent) {
@@ -252,7 +289,7 @@ class ShopMenu(
             val amount = plugin.balanceService.getBankCurrencyUnits(player, currency)
             Component.text()
                 .decoration(TextDecoration.ITALIC, false)
-                .append(Component.text(formatCurrencyId(currency.id), NamedTextColor.GOLD))
+                .append(Component.text(ShopMessageFormatter.formatCurrencyId(currency.id), NamedTextColor.GOLD))
                 .append(Component.text(": ", NamedTextColor.DARK_GRAY))
                 .append(Component.text(amount.toString(), NamedTextColor.YELLOW))
                 .build()
@@ -296,7 +333,7 @@ class ShopMenu(
                     add(
                         Component.text()
                             .decoration(TextDecoration.ITALIC, false)
-                            .append(Component.text(formatCurrencyId(currencyId), NamedTextColor.GOLD))
+                            .append(Component.text(ShopMessageFormatter.formatCurrencyId(currencyId), NamedTextColor.GOLD))
                             .append(Component.text(": ", NamedTextColor.DARK_GRAY))
                             .append(Component.text(amount.toString(), NamedTextColor.YELLOW))
                             .build()
@@ -315,47 +352,8 @@ class ShopMenu(
         return item
     }
 
-    private fun formatCurrencyId(currencyId: String): String {
-        return currencyId.split('_', '-', ' ')
-            .filter { it.isNotBlank() }
-            .joinToString(" ") { part ->
-                part.lowercase().replaceFirstChar { char ->
-                    if (char.isLowerCase()) char.titlecase() else char.toString()
-                }
-            }
-    }
-
-    private fun buildSessionTotalsMessage(ledger: ShopSessionLedger): Component {
-        return Component.join(JoinConfiguration.separator(Component.newline()),
-            *buildList {
-                if (ledger.spentTotals().isNotEmpty()) {
-                    add(buildTotalsLine("Total Spent: ", ledger.spentTotals()))
-                }
-                if (ledger.earnedTotals().isNotEmpty()) {
-                    add(buildTotalsLine("Total Earned: ", ledger.earnedTotals()))
-                }
-            }.toTypedArray(),
-        )
-    }
-
-    private fun buildTotalsLine(label: String, totals: Map<String, Long>): Component {
-        val line = Component.text(label, NamedTextColor.YELLOW)
-
-        val formattedValues = totals.entries
-            .sortedWith(compareByDescending { // Sort by currency (high to low)
-                plugin.currencyGraphService.getAtomicValue(it.key) ?: java.math.BigInteger.ZERO
-            })
-            .map { (currencyId, amount) -> // Format each currency amount
-                Component.text("$amount ${formatCurrencyId(currencyId)}", NamedTextColor.GOLD)
-            }
-        return line.append(Component.join(
-            JoinConfiguration.separator(Component.text(", ", NamedTextColor.YELLOW)),
-            formattedValues)
-        )
-    }
-
     private fun buildSellMessage(offeredStack: ItemStack, payoutAmount: Long, currencyId: String): Component {
-        val payoutComponent = Component.text("$payoutAmount ${formatCurrencyId(currencyId)}", NamedTextColor.GOLD)
+        val payoutComponent = Component.text("$payoutAmount ${ShopMessageFormatter.formatCurrencyId(currencyId)}", NamedTextColor.GOLD)
         val builder = Component.text()
             .append(Component.text("You sold ", NamedTextColor.GRAY))
 
@@ -374,7 +372,7 @@ class ShopMenu(
         val purchasedStack = shopItem.magicItem.itemStack.clone().apply { amount = quantity }
         val totalPrice = shopItem.price.amount.toLong() * quantity.toLong()
         val priceComponent = Component.text(
-            "$totalPrice ${formatCurrencyId(shopItem.price.currencyId)}",
+            "$totalPrice ${ShopMessageFormatter.formatCurrencyId(shopItem.price.currencyId)}",
             NamedTextColor.GOLD
         )
         val builder = Component.text()

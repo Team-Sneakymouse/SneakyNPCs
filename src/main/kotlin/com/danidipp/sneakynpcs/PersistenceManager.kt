@@ -25,6 +25,7 @@ class PlayerData(
     private val completedQuests: MutableSet<String>,
     private val reputation: MutableMap<String, Int>,
     private val npcWallets: MutableMap<String, NpcWalletState>,
+    private val shopItemStocks: MutableMap<String, MutableMap<String, ShopItemStockState>>,
 ) {
     @Volatile
     var isDirty = false
@@ -82,6 +83,24 @@ class PlayerData(
     fun getNpcWalletCount(): Int = npcWallets.size
 
     @Synchronized
+    fun getShopItemStockState(npcId: String, stockEntryId: String): ShopItemStockState? {
+        return shopItemStocks[npcId]?.get(stockEntryId)?.deepCopy()
+    }
+
+    @Synchronized
+    fun setShopItemStockState(npcId: String, stockEntryId: String, state: ShopItemStockState) {
+        val normalized = state.deepCopy()
+        val npcStocks = shopItemStocks.getOrPut(npcId) { mutableMapOf() }
+        if (npcStocks[stockEntryId] != normalized) {
+            npcStocks[stockEntryId] = normalized
+            isDirty = true
+        }
+    }
+
+    @Synchronized
+    fun getShopItemStockCount(): Int = shopItemStocks.values.sumOf { it.size }
+
+    @Synchronized
     fun toYaml(): YamlConfiguration {
         val config = YamlConfiguration()
         config.set("completedQuests", completedQuests.toList())
@@ -93,6 +112,12 @@ class PlayerData(
             config.set("npcWallets.$npcId.lastRestockAt", walletState.lastRestockAtEpochMillis)
             for ((currencyId, amount) in walletState.balances) {
                 config.set("npcWallets.$npcId.balances.$currencyId", amount)
+            }
+        }
+        for ((npcId, stockStates) in shopItemStocks) {
+            for ((stockEntryId, stockState) in stockStates) {
+                config.set("shopItemStocks.$npcId.$stockEntryId.remainingQuantity", stockState.remainingQuantity)
+                config.set("shopItemStocks.$npcId.$stockEntryId.lastRestockAt", stockState.lastRestockAtEpochMillis)
             }
         }
         return config
@@ -129,11 +154,30 @@ internal fun loadPlayerDataFromConfig(uuid: UUID, config: YamlConfiguration): Pl
         }
     }
 
+    val shopItemStocks = mutableMapOf<String, MutableMap<String, ShopItemStockState>>()
+    config.getConfigurationSection("shopItemStocks")?.let { stockSection ->
+        for (npcId in stockSection.getKeys(false)) {
+            val npcSection = stockSection.getConfigurationSection(npcId) ?: continue
+            val npcStocks = mutableMapOf<String, ShopItemStockState>()
+            for (stockEntryId in npcSection.getKeys(false)) {
+                val stockEntrySection = npcSection.getConfigurationSection(stockEntryId) ?: continue
+                npcStocks[stockEntryId] = ShopItemStockState(
+                    remainingQuantity = stockEntrySection.getInt("remainingQuantity"),
+                    lastRestockAtEpochMillis = stockEntrySection.getLong("lastRestockAt")
+                )
+            }
+            if (npcStocks.isNotEmpty()) {
+                shopItemStocks[npcId] = npcStocks
+            }
+        }
+    }
+
     return PlayerData(
         uuid = uuid,
         completedQuests = completedQuests,
         reputation = reputation,
-        npcWallets = npcWallets
+        npcWallets = npcWallets,
+        shopItemStocks = shopItemStocks,
     )
 }
 
@@ -206,7 +250,8 @@ class PersistenceManager(val plugin: SneakyNPCs): Listener {
                         uuid = uuid,
                         completedQuests = mutableSetOf(),
                         reputation = mutableMapOf(),
-                        npcWallets = mutableMapOf()
+                        npcWallets = mutableMapOf(),
+                        shopItemStocks = mutableMapOf(),
                     ).also { dataCache[uuid] = it }
                 }
 
@@ -243,7 +288,8 @@ class PersistenceManager(val plugin: SneakyNPCs): Listener {
                 val playerData = loadPlayerDataFromConfig(uuid, config)
                 plugin.logger.warning(
                     "Loaded player data for $uuid: ${playerData.getCompletedQuests(null).size} completed quests, " +
-                        "${playerData.getReputationEntries().size} reputation entries, ${playerData.getNpcWalletCount()} npc wallets"
+                        "${playerData.getReputationEntries().size} reputation entries, ${playerData.getNpcWalletCount()} npc wallets, " +
+                        "${playerData.getShopItemStockCount()} shop item stocks"
                 )
                 return@supplyAsync playerData.also { dataCache[uuid] = it }
             }

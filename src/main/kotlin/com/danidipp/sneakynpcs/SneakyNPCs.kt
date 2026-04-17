@@ -4,6 +4,7 @@ import com.danidipp.sneakynpcs.shop.BalanceService
 import com.danidipp.sneakynpcs.shop.CurrencyGraphService
 import com.danidipp.sneakynpcs.shop.NpcWalletService
 import com.danidipp.sneakynpcs.shop.RequirementService
+import com.danidipp.sneakynpcs.shop.ShopItemStockService
 import com.danidipp.sneakynpcs.shop.ShopTransactionService
 import com.nisovin.magicspells.MagicSpells
 import com.nisovin.magicspells.events.MagicSpellsLoadedEvent
@@ -30,6 +31,7 @@ class SneakyNPCs : JavaPlugin() {
     lateinit var balanceService: BalanceService
     lateinit var requirementService: RequirementService
     lateinit var npcWalletService: NpcWalletService
+    lateinit var shopItemStockService: ShopItemStockService
     lateinit var inventoryTransactionLogger: InventoryTransactionLogger
     lateinit var shopTransactionService: ShopTransactionService
     val npcs = mutableMapOf<String, NPC>()
@@ -51,12 +53,14 @@ class SneakyNPCs : JavaPlugin() {
         balanceService = BalanceService()
         requirementService = RequirementService()
         npcWalletService = NpcWalletService(currencyGraphService)
+        shopItemStockService = ShopItemStockService()
         inventoryTransactionLogger = CoreProtectInventoryTransactionLogger.create(this) ?: NoOpInventoryTransactionLogger
         shopTransactionService = ShopTransactionService(
             currencyGraphService,
             balanceService,
             requirementService,
             npcWalletService,
+            shopItemStockService,
             inventoryTransactionLogger,
         )
 

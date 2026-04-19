@@ -19,7 +19,6 @@ class ConfigManagerShopLimitValidationTest {
                 "restockAmount" to 1,
             ),
             path = "rootMenu.items[0].limits",
-            maxStackSize = 64,
         )
 
         assertNotNull(limits)
@@ -30,7 +29,7 @@ class ConfigManagerShopLimitValidationTest {
     }
 
     @Test
-    fun `shop item limits reject maxQuantity above stack size`() {
+    fun `shop item limits allow maxQuantity above stack size`() {
         val (limits, errors) = parseShopItemLimitConfig(
             rawLimits = mapOf(
                 "maxQuantity" to 65,
@@ -38,14 +37,11 @@ class ConfigManagerShopLimitValidationTest {
                 "restockAmount" to 1,
             ),
             path = "rootMenu.items[0].limits",
-            maxStackSize = 64,
         )
 
-        assertNull(limits)
-        assertEquals(
-            listOf(" - rootMenu.items[0].limits.maxQuantity: Must be <= item max stack size 64"),
-            errors.map(serializer::serialize)
-        )
+        assertNotNull(limits)
+        assertEquals(65, limits.maxQuantity)
+        assertTrue(errors.isEmpty())
     }
 
     @Test
@@ -57,7 +53,6 @@ class ConfigManagerShopLimitValidationTest {
                 "restockAmount" to -1,
             ),
             path = "rootMenu.items[0].limits",
-            maxStackSize = 64,
         )
 
         assertNull(limits)
@@ -80,7 +75,6 @@ class ConfigManagerShopLimitValidationTest {
                 "restockAmount" to 1,
             ),
             path = "rootMenu.items[0].limits",
-            maxStackSize = 64,
         )
 
         assertNull(limits)
@@ -100,7 +94,6 @@ class ConfigManagerShopLimitValidationTest {
                 "mystery" to true,
             ),
             path = "rootMenu.items[0].limits",
-            maxStackSize = 64,
         )
 
         assertNull(limits)

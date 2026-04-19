@@ -87,7 +87,7 @@ class ShopTransactionServiceTest {
         val resolvedQuantity = service.resolveEffectivePurchaseQuantity(
             playerData = playerData,
             npcId = "merchant",
-            stockEntryId = "rootMenu/options/1/items/0",
+            stockEntryId = "rootMenu/options/1/items/item-brick",
             limits = limits(maxQuantity = 5),
             requestedQuantity = 64,
             nowMillis = 0L,
@@ -101,7 +101,7 @@ class ShopTransactionServiceTest {
         val playerData = emptyPlayerData().apply {
             setShopItemStockState(
                 "merchant",
-                "rootMenu/options/1/items/0",
+                "rootMenu/options/1/items/item-brick",
                 com.danidipp.sneakynpcs.ShopItemStockState(
                     remainingQuantity = 0,
                     lastRestockAtEpochMillis = 0L
@@ -112,7 +112,7 @@ class ShopTransactionServiceTest {
         val resolvedQuantity = service.resolveEffectivePurchaseQuantity(
             playerData = playerData,
             npcId = "merchant",
-            stockEntryId = "rootMenu/options/1/items/0",
+            stockEntryId = "rootMenu/options/1/items/item-brick",
             limits = limits(maxQuantity = 5),
             requestedQuantity = 1,
             nowMillis = 0L,
@@ -126,7 +126,7 @@ class ShopTransactionServiceTest {
         val resolvedQuantity = service.resolveEffectivePurchaseQuantity(
             playerData = emptyPlayerData(),
             npcId = "merchant",
-            stockEntryId = "rootMenu/options/1/items/1",
+            stockEntryId = "rootMenu/options/1/items/item-plank",
             limits = null,
             requestedQuantity = 1,
             nowMillis = 0L,
@@ -140,7 +140,7 @@ class ShopTransactionServiceTest {
         val playerData = emptyPlayerData().apply {
             setShopItemStockState(
                 "merchant",
-                "rootMenu/options/1/items/0",
+                "rootMenu/options/1/items/item-brick",
                 com.danidipp.sneakynpcs.ShopItemStockState(
                     remainingQuantity = 2,
                     lastRestockAtEpochMillis = 0L
@@ -151,7 +151,7 @@ class ShopTransactionServiceTest {
         val resolvedQuantity = service.resolveEffectivePurchaseQuantity(
             playerData = playerData,
             npcId = "merchant",
-            stockEntryId = "rootMenu/options/1/items/0",
+            stockEntryId = "rootMenu/options/1/items/item-brick",
             limits = limits(maxQuantity = 5, restockIntervalSeconds = 60L, restockAmount = 1),
             requestedQuantity = 64,
             nowMillis = 180_000L,

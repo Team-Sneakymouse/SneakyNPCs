@@ -159,7 +159,9 @@ class ShopMenu(
     ): ItemStack {
         val stack = shopItem.magicItem.itemStack.clone()
         val limits = shopItem.limits ?: return stack
-        val resolvedPlayerData = playerData ?: return stack.apply { amount = limits.maxQuantity }
+        val resolvedPlayerData = playerData ?: return stack.apply {
+            amount = minOf(limits.maxQuantity, maxStackSize.coerceAtLeast(1))
+        }
         val remainingQuantity = plugin.shopItemStockService.getRemainingQuantity(
             playerData = resolvedPlayerData,
             npcId = npc.id,
@@ -173,7 +175,7 @@ class ShopMenu(
             return stack
         }
 
-        stack.amount = remainingQuantity
+        stack.amount = minOf(remainingQuantity, stack.maxStackSize.coerceAtLeast(1))
         return stack
     }
 

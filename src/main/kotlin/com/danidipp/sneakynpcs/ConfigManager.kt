@@ -265,10 +265,27 @@ private fun parseIntValue(raw: Any?): Int? = when (raw) {
     else -> null
 }
 
+internal fun validateShopItemIdForStockPersistence(itemId: String): String? {
+    if (itemId.contains('.')) {
+        return "Magic item id may not contain '.'"
+    }
+    return null
+}
+
+internal fun buildShopStockEntryId(path: String, itemId: String): String {
+    val normalizedPath = path
+        .replace(".", "/")
+        .replace(Regex("\\[(\\d+)]"), "/$1")
+    val lastSeparatorIndex = normalizedPath.lastIndexOf('/')
+    if (lastSeparatorIndex == -1) {
+        return itemId
+    }
+    return normalizedPath.substring(0, lastSeparatorIndex + 1) + itemId
+}
+
 internal fun parseShopItemLimitConfig(
     rawLimits: Any?,
     path: String,
-    maxStackSize: Int,
 ): Pair<ShopItemLimitConfig?, List<Component>> {
     val errors = ValidationErrors()
     val limitsYaml = when (rawLimits) {
@@ -291,8 +308,6 @@ internal fun parseShopItemLimitConfig(
         errors.add("$path.maxQuantity", "Missing or invalid field")
     } else if (maxQuantity <= 0) {
         errors.add("$path.maxQuantity", "Must be > 0")
-    } else if (maxQuantity > maxStackSize.coerceAtLeast(1)) {
-        errors.add("$path.maxQuantity", "Must be <= item max stack size ${maxStackSize.coerceAtLeast(1)}")
     }
 
     val restockInterval = parseLongValue(limitsYaml["restockInterval"])
@@ -833,6 +848,10 @@ class ConfigManager(private val plugin: SneakyNPCs) {
             errors.add("$path.item", "Missing or invalid field")
             return Pair(null, errors)
         }
+        validateShopItemIdForStockPersistence(itemId)?.let { validationMessage ->
+            errors.add("$path.item", validationMessage)
+            return Pair(null, errors)
+        }
 
         val magicItem = MagicItems.getMagicItemFromString(itemId) ?: run {
             errors.add("$path.item", "Magic item '$itemId' not found")
@@ -920,7 +939,7 @@ class ConfigManager(private val plugin: SneakyNPCs) {
 
         val (limits, limitErrors) = when (val rawLimits = itemYaml["limits"]) {
             null -> Pair(null, emptyList())
-            else -> parseShopItemLimitConfig(rawLimits, "$path.limits", magicItem.itemStack.maxStackSize)
+            else -> parseShopItemLimitConfig(rawLimits, "$path.limits")
         }
         if (limitErrors.isNotEmpty()) {
             errors.addAll(limitErrors)
@@ -931,7 +950,7 @@ class ConfigManager(private val plugin: SneakyNPCs) {
             ShopMenuItem(
                 itemId = itemId,
                 magicItem = magicItem,
-                stockEntryId = pathToStockEntryId(path),
+                stockEntryId = buildShopStockEntryId(path, itemId),
                 buyStacks = buyStacks,
                 requirements = requirements,
                 price = ShopPrice(currencyId = currencyId, amount = amount),
@@ -939,12 +958,6 @@ class ConfigManager(private val plugin: SneakyNPCs) {
             ),
             errors.toList()
         )
-    }
-
-    private fun pathToStockEntryId(path: String): String {
-        return path
-            .replace(".", "/")
-            .replace(Regex("\\[(\\d+)]"), "/$1")
     }
 
     fun parseCustomMenu(menuYaml: Map<*, *>, npcId: String, path: String): Pair<CustomMenu?, List<Component>> {

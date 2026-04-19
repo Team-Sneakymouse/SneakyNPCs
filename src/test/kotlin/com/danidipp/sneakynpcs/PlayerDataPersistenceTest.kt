@@ -22,7 +22,7 @@ class PlayerDataPersistenceTest {
             ),
             shopItemStocks = mutableMapOf(
                 "jacktimbers" to mutableMapOf(
-                    "rootMenu/options/1/items/0" to ShopItemStockState(
+                    "rootMenu/options/1/items/item-brick" to ShopItemStockState(
                         remainingQuantity = 3,
                         lastRestockAtEpochMillis = 5678L
                     )
@@ -38,7 +38,7 @@ class PlayerDataPersistenceTest {
         assertEquals("silver", wallet.nativeCurrencyId)
         assertEquals(1234L, wallet.lastRestockAtEpochMillis)
         assertEquals(mapOf("silver" to 99L, "penny" to 10L), wallet.balances)
-        val stock = assertNotNull(reloaded.getShopItemStockState("jacktimbers", "rootMenu/options/1/items/0"))
+        val stock = assertNotNull(reloaded.getShopItemStockState("jacktimbers", "rootMenu/options/1/items/item-brick"))
         assertEquals(3, stock.remainingQuantity)
         assertEquals(5678L, stock.lastRestockAtEpochMillis)
     }

@@ -17,7 +17,7 @@ class ShopItemStockServiceTest {
         val state = service.getOrCreateRestockedStock(
             playerData = emptyPlayerData(),
             npcId = "merchant",
-            stockEntryId = "rootMenu/options/1/items/0",
+            stockEntryId = "rootMenu/options/1/items/item-brick",
             limits = limits(),
             nowMillis = 0L,
         )
@@ -31,7 +31,7 @@ class ShopItemStockServiceTest {
         val playerData = emptyPlayerData().apply {
             setShopItemStockState(
                 "merchant",
-                "rootMenu/options/1/items/0",
+                "rootMenu/options/1/items/item-brick",
                 ShopItemStockState(remainingQuantity = 2, lastRestockAtEpochMillis = 0L)
             )
         }
@@ -39,7 +39,7 @@ class ShopItemStockServiceTest {
         val state = service.getOrCreateRestockedStock(
             playerData = playerData,
             npcId = "merchant",
-            stockEntryId = "rootMenu/options/1/items/0",
+            stockEntryId = "rootMenu/options/1/items/item-brick",
             limits = limits(),
             nowMillis = 180_000L,
         )
@@ -53,7 +53,7 @@ class ShopItemStockServiceTest {
         val playerData = emptyPlayerData().apply {
             setShopItemStockState(
                 "merchant",
-                "rootMenu/options/1/items/0",
+                "rootMenu/options/1/items/item-brick",
                 ShopItemStockState(remainingQuantity = 9, lastRestockAtEpochMillis = 0L)
             )
         }
@@ -61,7 +61,7 @@ class ShopItemStockServiceTest {
         val state = service.getOrCreateRestockedStock(
             playerData = playerData,
             npcId = "merchant",
-            stockEntryId = "rootMenu/options/1/items/0",
+            stockEntryId = "rootMenu/options/1/items/item-brick",
             limits = limits(maxQuantity = 5),
             nowMillis = 42L,
         )
@@ -75,7 +75,7 @@ class ShopItemStockServiceTest {
         val playerData = emptyPlayerData().apply {
             setShopItemStockState(
                 "merchant",
-                "rootMenu/options/1/items/0",
+                "rootMenu/options/1/items/item-brick",
                 ShopItemStockState(remainingQuantity = 0, lastRestockAtEpochMillis = 0L)
             )
         }
@@ -83,7 +83,7 @@ class ShopItemStockServiceTest {
         val result = service.consumeForPurchase(
             playerData = playerData,
             npcId = "merchant",
-            stockEntryId = "rootMenu/options/1/items/0",
+            stockEntryId = "rootMenu/options/1/items/item-brick",
             limits = limits(),
             requestedQuantity = 1,
             nowMillis = 0L,
@@ -98,7 +98,7 @@ class ShopItemStockServiceTest {
         val playerData = emptyPlayerData().apply {
             setShopItemStockState(
                 "merchant",
-                "rootMenu/options/1/items/0",
+                "rootMenu/options/1/items/item-brick",
                 ShopItemStockState(remainingQuantity = 8, lastRestockAtEpochMillis = 0L)
             )
         }
@@ -106,7 +106,7 @@ class ShopItemStockServiceTest {
         val state = service.getOrCreateRestockedStock(
             playerData = playerData,
             npcId = "merchant",
-            stockEntryId = "rootMenu/options/1/items/0",
+            stockEntryId = "rootMenu/options/1/items/item-brick",
             limits = limits(maxQuantity = 3),
             nowMillis = 100L,
         )
@@ -120,7 +120,7 @@ class ShopItemStockServiceTest {
         val playerData = emptyPlayerData().apply {
             setShopItemStockState(
                 "merchant",
-                "rootMenu/options/1/items/0",
+                "rootMenu/options/1/items/item-brick",
                 ShopItemStockState(remainingQuantity = 2, lastRestockAtEpochMillis = 0L)
             )
         }
@@ -128,7 +128,7 @@ class ShopItemStockServiceTest {
         val state = service.getOrCreateRestockedStock(
             playerData = playerData,
             npcId = "merchant",
-            stockEntryId = "rootMenu/options/1/items/0",
+            stockEntryId = "rootMenu/options/1/items/item-brick",
             limits = limits(restockAmount = 0),
             nowMillis = 180_000L,
         )
@@ -142,7 +142,7 @@ class ShopItemStockServiceTest {
         val playerData = emptyPlayerData().apply {
             setShopItemStockState(
                 "merchant",
-                "rootMenu/options/1/items/0",
+                "rootMenu/options/1/items/item-brick",
                 ShopItemStockState(remainingQuantity = 3, lastRestockAtEpochMillis = 0L)
             )
         }
@@ -150,7 +150,7 @@ class ShopItemStockServiceTest {
         val result = service.consumeForPurchase(
             playerData = playerData,
             npcId = "merchant",
-            stockEntryId = "rootMenu/options/1/items/0",
+            stockEntryId = "rootMenu/options/1/items/item-brick",
             limits = limits(),
             requestedQuantity = 64,
             nowMillis = 0L,
@@ -158,7 +158,7 @@ class ShopItemStockServiceTest {
 
         val success = assertIs<ShopItemStockService.ConsumeResult.Success>(result)
         assertEquals(3, success.grantedQuantity)
-        val updated = assertNotNull(playerData.getShopItemStockState("merchant", "rootMenu/options/1/items/0"))
+        val updated = assertNotNull(playerData.getShopItemStockState("merchant", "rootMenu/options/1/items/item-brick"))
         assertEquals(0, updated.remainingQuantity)
     }
 

@@ -263,14 +263,9 @@ class PersistenceManager(val plugin: SneakyNPCs): Listener {
                     when (e) {
                         is IOException, is InvalidConfigurationException -> {
                             plugin.logger.severe("CORRUPT DATA for $uuid (${e.message})! Backing up and creating new data.")
-                            Bukkit.getPlayer(uuid)?.sendMessage(
-                                plugin.prefix.append(
-                                    Component.text(
-                                        "Failed to load player data. Please tell Dani so we can check what can be recovered!",
-                                        NamedTextColor.RED
-                                    )
-                                )
-                            )
+                            Bukkit.getPlayer(uuid)?.sendMessage(plugin.prefix.append(
+                                Component.text("Failed to load player data. Please tell Dani so we can check what can be recovered!", NamedTextColor.RED)
+                            ))
                             try {
                                 val backupFile = plugin.dataFolder.resolve("players")
                                     .resolve("$uuid.corrupt-${System.currentTimeMillis()}.yaml")

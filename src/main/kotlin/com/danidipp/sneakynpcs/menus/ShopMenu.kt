@@ -107,11 +107,7 @@ class ShopMenu(
             }
             is ShopTransactionService.PurchaseResult.Failure -> {
                 player.playSound(player.location, "lom:fail_wrong", 1f, 1f)
-                player.sendMessage(
-                    plugin.prefix.append(
-                        Component.text(result.message, NamedTextColor.RED)
-                    )
-                )
+                player.sendMessage(Component.text(result.message, NamedTextColor.RED))
             }
         }
     }

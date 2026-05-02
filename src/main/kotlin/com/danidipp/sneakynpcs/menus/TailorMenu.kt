@@ -4,6 +4,7 @@ import com.danidipp.sneakynpcs.NPCGui
 import com.danidipp.sneakynpcs.PlayerData
 import com.danidipp.sneakynpcs.shop.ShopMessageFormatter
 import com.danidipp.sneakynpcs.shop.ShopPrice
+import com.danidipp.sneakynpcs.shop.ShopTransactionService
 import me.clip.placeholderapi.PlaceholderAPI
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.NamedTextColor
@@ -58,30 +59,22 @@ class TailorMenu(
         val buttonConfig = getButtonConfig(event.slot) ?: return
         val skinUid = PlaceholderAPI.setPlaceholders(player, "%sneakymannequins_skin_session_uid%")
         if (skinUid.isEmpty()) {
-            player.sendMessage(gui.plugin.prefix.append(
-                Component.text("Current skin is unsupported. Please apply a skin at the mannequin.", NamedTextColor.RED)
-            ))
+            player.sendMessage(Component.text("Current skin is unsupported. Please apply a skin at the mannequin.", NamedTextColor.RED))
             return
         }
         if (!gui.plugin.server.pluginManager.isPluginEnabled("SneakyMannequins")) {
-            player.sendMessage(
-                gui.plugin.prefix.append(
-                    Component.text("SneakyMannequins not available. Please tell Dani.", NamedTextColor.RED)
-                )
-            )
+            player.sendMessage(gui.plugin.prefix.append(
+                Component.text("SneakyMannequins not available. Please tell Dani.", NamedTextColor.RED)
+            ))
             return
         }
 
         when (val chargeResult = gui.plugin.shopTransactionService.charge(player, buttonConfig.price)) {
-            is com.danidipp.sneakynpcs.shop.ShopTransactionService.PurchaseResult.Failure -> {
-                player.sendMessage(
-                    gui.plugin.prefix.append(
-                        Component.text(chargeResult.message, NamedTextColor.RED)
-                    )
-                )
+            is ShopTransactionService.PurchaseResult.Failure -> {
+                player.sendMessage(Component.text(chargeResult.message, NamedTextColor.RED))
                 return
             }
-            is com.danidipp.sneakynpcs.shop.ShopTransactionService.PurchaseResult.Success -> {
+            is ShopTransactionService.PurchaseResult.Success -> {
                 ShopMessageFormatter.buildSpentTotalsMessage(gui.plugin.currencyGraphService, chargeResult.spent)?.let(player::sendMessage)
             }
         }

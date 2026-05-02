@@ -11,10 +11,16 @@ import com.danidipp.sneakynpcs.menus.ShopMenu
 import com.danidipp.sneakynpcs.menus.ShopMenuItem
 import com.danidipp.sneakynpcs.menus.TailorButtonConfig
 import com.danidipp.sneakynpcs.menus.TailorMenu
+import com.danidipp.sneakynpcs.menus.TaxesMenu
+import com.danidipp.sneakynpcs.menus.TaxesMenuConfig
+import com.danidipp.sneakynpcs.menus.TaxesPaymentConfig
+import com.danidipp.sneakynpcs.menus.TaxesRewardConfig
+import com.danidipp.sneakynpcs.menus.calculateTaxesCurrencyUnits
 import com.danidipp.sneakynpcs.shop.CurrencyLookup
 import com.danidipp.sneakynpcs.shop.ShopPrice
 import com.danidipp.sneakynpcs.shop.ShopRequirement
 import com.nisovin.magicspells.MagicSpells
+import com.nisovin.magicspells.util.magicitems.MagicItem
 import com.nisovin.magicspells.util.magicitems.MagicItems
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.JoinConfiguration
@@ -247,6 +253,208 @@ internal fun parseTailorButtonConfig(
         ),
         errors.toList()
     )
+}
+
+internal fun parseTaxesMenuConfig(
+    menuYaml: Map<*, *>,
+    path: String,
+    currencyLookup: CurrencyLookup,
+    hasVariable: (String) -> Boolean,
+    rewardItemLookup: (String) -> MagicItem?,
+): Pair<TaxesMenu?, List<Component>> {
+    val (taxesConfig, errors) = parseTaxesMenuSettings(
+        menuYaml = menuYaml,
+        path = path,
+        currencyLookup = currencyLookup,
+        hasVariable = hasVariable,
+        hasRewardItem = { itemId -> rewardItemLookup(itemId) != null },
+    )
+    if (errors.isNotEmpty()) {
+        return Pair(null, errors)
+    }
+
+    val rewardItem = rewardItemLookup(taxesConfig!!.reward.itemId) ?: return Pair(
+        null,
+        listOf(validationDetail("$path.reward.item", "Required MagicItem '${taxesConfig.reward.itemId}' is not configured"))
+    )
+
+    return Pair(TaxesMenu(rewardItem, taxesConfig), errors)
+}
+
+internal fun parseTaxesMenuSettings(
+    menuYaml: Map<*, *>,
+    path: String,
+    currencyLookup: CurrencyLookup,
+    hasVariable: (String) -> Boolean,
+    hasRewardItem: (String) -> Boolean,
+): Pair<TaxesMenuConfig?, List<Component>> {
+    val errors = ValidationErrors()
+    val allowedKeys = setOf("type", "payments", "reward")
+    val unknownKeys = menuYaml.keys.filterIsInstance<String>().filterNot { it in allowedKeys }
+    if (unknownKeys.isNotEmpty()) {
+        errors.add(path, "Unknown taxes menu keys ${unknownKeys.joinToString(", ")}")
+    }
+
+    val payments = mutableMapOf<Int, TaxesPaymentConfig>()
+    val paymentsYaml = asConfigMap(menuYaml["payments"])
+    if (menuYaml.containsKey("payments") && paymentsYaml == null) {
+        errors.add("$path.payments", "Invalid field. Expected object, got ${describeConfigValue(menuYaml["payments"])}")
+    } else if (!menuYaml.containsKey("payments")) {
+        errors.add("$path.payments", "Missing or invalid section")
+    }
+
+    if (paymentsYaml != null) {
+        val allowedPaymentKeys = setOf("slot14", "slot16")
+        val unknownPaymentKeys = paymentsYaml.keys.filterIsInstance<String>().filterNot { it in allowedPaymentKeys }
+        if (unknownPaymentKeys.isNotEmpty()) {
+            errors.add("$path.payments", "Unknown taxes payment keys ${unknownPaymentKeys.joinToString(", ")}")
+        }
+
+        parseTaxesPaymentConfig(paymentsYaml["slot14"], "$path.payments.slot14", currencyLookup, errors)
+            ?.let { payments[14] = it }
+        parseTaxesPaymentConfig(paymentsYaml["slot16"], "$path.payments.slot16", currencyLookup, errors)
+            ?.let { payments[16] = it }
+    }
+
+    val reward = parseTaxesRewardConfig(menuYaml["reward"], "$path.reward", hasRewardItem, errors)
+
+    if (!hasVariable("bankTax")) {
+        errors.add("$path.bankTax", "Required MagicSpells variable 'bankTax' is not configured")
+    }
+
+    if (reward != null) {
+        for ((slot, payment) in payments) {
+            if (calculateTaxesCurrencyUnits(reward.taxValue, payment.taxValuePerUnit) == null) {
+                errors.add(
+                    "$path.payments.slot$slot.taxValue",
+                    "Reward tax value ${reward.taxValue} must be divisible by currency tax value ${payment.taxValuePerUnit}"
+                )
+            }
+        }
+    }
+
+    if (errors.isNotEmpty() || reward == null) {
+        return Pair(null, errors.toList())
+    }
+
+    return Pair(TaxesMenuConfig(payments = payments.toMap(), reward = reward), errors.toList())
+}
+
+internal fun validateTaxesMenuConfig(
+    menuYaml: Map<*, *>,
+    path: String,
+    currencyLookup: CurrencyLookup,
+    hasVariable: (String) -> Boolean,
+    hasRewardItem: (String) -> Boolean,
+): List<Component> {
+    return parseTaxesMenuSettings(
+        menuYaml = menuYaml,
+        path = path,
+        currencyLookup = currencyLookup,
+        hasVariable = hasVariable,
+        hasRewardItem = hasRewardItem,
+    ).second
+}
+
+private fun parseTaxesPaymentConfig(
+    rawPayment: Any?,
+    path: String,
+    currencyLookup: CurrencyLookup,
+    errors: ValidationErrors,
+): TaxesPaymentConfig? {
+    val paymentYaml = when (rawPayment) {
+        null -> null
+        else -> asConfigMap(rawPayment)
+    } ?: run {
+        errors.add(path, "Missing or invalid section")
+        return null
+    }
+
+    val allowedKeys = setOf("currency", "taxValue")
+    val unknownKeys = paymentYaml.keys.filterIsInstance<String>().filterNot { it in allowedKeys }
+    if (unknownKeys.isNotEmpty()) {
+        errors.add(path, "Unknown taxes payment config keys ${unknownKeys.joinToString(", ")}")
+    }
+
+    val rawCurrencyId = paymentYaml["currency"]
+    val currencyId = (rawCurrencyId as? String)?.takeIf { it.isNotBlank() }
+    if (currencyId == null) {
+        errors.add("$path.currency", "Missing or invalid field")
+    } else {
+        validateTaxesCurrency(currencyId, "$path.currency", currencyLookup, errors)
+    }
+
+    val taxValue = parseLongValue(paymentYaml["taxValue"])
+    if (taxValue == null) {
+        errors.add("$path.taxValue", "Missing or invalid field")
+    } else if (taxValue <= 0L) {
+        errors.add("$path.taxValue", "Must be > 0")
+    }
+
+    if (currencyId == null || taxValue == null || taxValue <= 0L) return null
+    return TaxesPaymentConfig(currencyId = currencyId, taxValuePerUnit = taxValue)
+}
+
+private fun parseTaxesRewardConfig(
+    rawReward: Any?,
+    path: String,
+    hasRewardItem: (String) -> Boolean,
+    errors: ValidationErrors,
+): TaxesRewardConfig? {
+    val rewardYaml = when (rawReward) {
+        null -> null
+        else -> asConfigMap(rawReward)
+    } ?: run {
+        errors.add(path, "Missing or invalid section")
+        return null
+    }
+
+    val allowedKeys = setOf("item", "taxValue")
+    val unknownKeys = rewardYaml.keys.filterIsInstance<String>().filterNot { it in allowedKeys }
+    if (unknownKeys.isNotEmpty()) {
+        errors.add(path, "Unknown taxes reward config keys ${unknownKeys.joinToString(", ")}")
+    }
+
+    val rawItemId = rewardYaml["item"]
+    val itemId = (rawItemId as? String)?.takeIf { it.isNotBlank() }
+    if (itemId == null) {
+        errors.add("$path.item", "Missing or invalid field")
+    } else if (!hasRewardItem(itemId)) {
+        errors.add("$path.item", "Required MagicItem '$itemId' is not configured")
+    }
+
+    val taxValue = parseLongValue(rewardYaml["taxValue"])
+    if (taxValue == null) {
+        errors.add("$path.taxValue", "Missing or invalid field")
+    } else if (taxValue <= 0L) {
+        errors.add("$path.taxValue", "Must be > 0")
+    }
+
+    if (itemId == null || taxValue == null || taxValue <= 0L) return null
+    return TaxesRewardConfig(itemId = itemId, taxValue = taxValue)
+}
+
+private fun asConfigMap(value: Any?): Map<*, *>? {
+    return when (value) {
+        is Map<*, *> -> value
+        is ConfigurationSection -> value.getValues(false)
+        else -> null
+    }
+}
+
+private fun validateTaxesCurrency(
+    currencyId: String,
+    path: String,
+    currencyLookup: CurrencyLookup,
+    errors: ValidationErrors,
+) {
+    val currency = currencyLookup.getCurrency(currencyId) ?: run {
+        errors.add(path, "Required currency '$currencyId' is not configured")
+        return
+    }
+    if (currency.itemMagicItem == null && currency.variableId == null) {
+        errors.add(path, "Required currency '$currencyId' must define an item or bank variable")
+    }
 }
 
 private fun parseLongValue(raw: Any?): Long? = when (raw) {
@@ -620,6 +828,7 @@ class ConfigManager(private val plugin: SneakyNPCs) {
             "custom" -> parseCustomMenu(menuYaml, npcId, path)
             "external" -> parseExternalMenu(menuYaml, npcId, path)
             "tailor" -> parseTailorMenu(menuYaml, path)
+            "taxes" -> parseTaxesMenu(menuYaml, path)
             else -> Pair(null, listOf(validationDetail("$path.type", "Unknown menu type '$type'")))
         }
     }
@@ -991,5 +1200,15 @@ class ConfigManager(private val plugin: SneakyNPCs) {
 
     fun parseTailorMenu(menuYaml: Map<*, *>, path: String): Pair<TailorMenu?, List<Component>> {
         return parseTailorMenuConfig(menuYaml, path, plugin.currencyGraphService)
+    }
+
+    fun parseTaxesMenu(menuYaml: Map<*, *>, path: String): Pair<TaxesMenu?, List<Component>> {
+        return parseTaxesMenuConfig(
+            menuYaml = menuYaml,
+            path = path,
+            currencyLookup = plugin.currencyGraphService,
+            hasVariable = { variableId -> MagicSpells.getVariableManager().getVariable(variableId) != null },
+            rewardItemLookup = { itemId -> MagicItems.getMagicItemByInternalName(itemId) },
+        )
     }
 }

@@ -916,7 +916,7 @@ class ConfigManager(private val plugin: SneakyNPCs) {
 
     fun parseQuestMenuQuest(questYaml: Map<*, *>, npcId: String, path: String): Pair<NPCQuest?, List<Component>> {
         val errors = ValidationErrors()
-        val allowedKeys = setOf("quest", "items")
+        val allowedKeys = setOf("quest", "dialogue", "items")
         val unknownKeys = questYaml.keys.filterIsInstance<String>().filterNot { it in allowedKeys }
         if (unknownKeys.isNotEmpty()) {
             errors.add(path, "Unknown quest keys ${unknownKeys.joinToString(", ")}")
@@ -926,6 +926,14 @@ class ConfigManager(private val plugin: SneakyNPCs) {
             errors.add("$path.quest", "Missing or invalid field")
             return Pair(null, errors)
         })
+        val dialogueId = questYaml["dialogue"] as? String ?: run {
+            errors.add("$path.dialogue", "Missing or invalid field")
+            return Pair(null, errors)
+        }
+        if (dialogueId.isBlank()) {
+            errors.add("$path.dialogue", "Cannot be blank")
+            return Pair(null, errors)
+        }
 
         val itemsYaml = questYaml["items"] as? List<*> ?: run {
             errors.add("$path.items", "Missing or invalid field")
@@ -946,7 +954,7 @@ class ConfigManager(private val plugin: SneakyNPCs) {
             }
             if (item != null) items.add(item)
         }
-        return Pair(NPCQuest(quest = questId, items = items), errors.toList())
+        return Pair(NPCQuest(quest = questId, dialogue = dialogueId, items = items), errors.toList())
     }
 
     fun parseQuestMenuQuestItem(itemYaml: Map<*, *>, npcId: String, path: String): Pair<NPCQuestItem?, List<Component>> {

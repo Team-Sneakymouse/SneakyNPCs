@@ -13,10 +13,12 @@ rootMenu:
     - type: quest
       quests:
         - quest: learning_to_jack_1
+          dialogue: learning_to_jack
           items:
             - item: item-wood-spruce
               amount: 99
         - quest: learning_to_jack_2
+          dialogue: learning_to_jack
           items:
             - item: item-wood-oak
               amount: 99

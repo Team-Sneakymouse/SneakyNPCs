@@ -13,6 +13,7 @@ import org.bukkit.event.inventory.InventoryClickEvent
 
 data class NPCQuest(
     val quest: String,
+    val dialogue: String,
     val items: List<NPCQuestItem>
 )
 data class NPCQuestItem(
@@ -44,7 +45,7 @@ class QuestMenu(val quests: List<NPCQuest>) : NPCMenu(MenuType.QUEST) {
 
         inv.clear()
         inv.setItem(0, makeItem(npc.guiModelKey, "alt", hideTooltip))
-        inv.setItem(1, makeItem(npc.questModelKey, currentQuest.quest, hideTooltip))
+        inv.setItem(1, makeItem(npc.questModelKey, currentQuest.dialogue, hideTooltip))
         inv.setItem(53, makeItem("lom:npcs/questbox", if (questCompletable(player, currentQuest)) "complete" else "incomplete", hideTooltip))
 
         val items = currentQuest.items.toMutableList()

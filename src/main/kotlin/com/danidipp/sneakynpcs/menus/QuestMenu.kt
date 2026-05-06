@@ -7,6 +7,8 @@ import com.danidipp.sneakynpcs.SneakyNPCs
 import com.nisovin.magicspells.util.magicitems.MagicItem
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.NamedTextColor
+import net.kyori.adventure.text.format.TextDecoration
+import net.kyori.adventure.text.minimessage.MiniMessage
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
 import org.bukkit.entity.Player
 import org.bukkit.event.inventory.InventoryClickEvent
@@ -14,7 +16,12 @@ import org.bukkit.event.inventory.InventoryClickEvent
 data class NPCQuest(
     val quest: String,
     val dialogue: String,
+    val hint: NPCQuestHint?,
     val items: List<NPCQuestItem>
+)
+data class NPCQuestHint(
+    val title: String,
+    val body: List<String>
 )
 data class NPCQuestItem(
     val magicItem: MagicItem,
@@ -23,6 +30,7 @@ data class NPCQuestItem(
 
 class QuestMenu(val quests: List<NPCQuest>) : NPCMenu(MenuType.QUEST) {
     val plugin = SneakyNPCs.getInstance()
+    private val miniMessage = MiniMessage.miniMessage()
 
     override fun open(gui: NPCGui, player: Player, playerData: PlayerData?) {
         val resolvedData = playerData ?: plugin.persistenceManager.dataCache[player.uniqueId]
@@ -47,6 +55,11 @@ class QuestMenu(val quests: List<NPCQuest>) : NPCMenu(MenuType.QUEST) {
         inv.setItem(0, makeItem(npc.guiModelKey, "alt", hideTooltip))
         inv.setItem(1, makeItem(npc.questModelKey, currentQuest.dialogue, hideTooltip))
         inv.setItem(53, makeItem("lom:npcs/questbox", if (questCompletable(player, currentQuest)) "complete" else "incomplete", hideTooltip))
+        currentQuest.hint?.let { hint ->
+            val hintItem = buildHintItem(hint)
+            inv.setItem(24, hintItem)
+            inv.setItem(25, hintItem.clone())
+        }
 
         val items = currentQuest.items.toMutableList()
         for (slot in 5 until 9) {
@@ -87,6 +100,19 @@ class QuestMenu(val quests: List<NPCQuest>) : NPCMenu(MenuType.QUEST) {
             completeQuest(player, playerData, currentQuest)
             gui.close()
         }
+    }
+
+    private fun buildHintItem(hint: NPCQuestHint) = makeItem("lom:invisible").apply {
+        editMeta { meta ->
+            meta.displayName(formatHintText(hint.title))
+            meta.lore(hint.body.map(::formatHintText))
+        }
+    }
+
+    private fun formatHintText(input: String): Component {
+        return miniMessage.deserialize(input)
+            .colorIfAbsent(NamedTextColor.WHITE)
+            .decorationIfAbsent(TextDecoration.ITALIC, TextDecoration.State.FALSE)
     }
 
     fun questCompletable(player: Player, quest: NPCQuest): Boolean {

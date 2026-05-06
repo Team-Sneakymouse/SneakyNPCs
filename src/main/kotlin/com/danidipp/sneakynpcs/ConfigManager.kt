@@ -4,6 +4,7 @@ import com.danidipp.sneakynpcs.menus.CustomMenu
 import com.danidipp.sneakynpcs.menus.ExternalMenu
 import com.danidipp.sneakynpcs.menus.NPCMenu
 import com.danidipp.sneakynpcs.menus.NPCQuest
+import com.danidipp.sneakynpcs.menus.NPCQuestHint
 import com.danidipp.sneakynpcs.menus.NPCQuestItem
 import com.danidipp.sneakynpcs.menus.QuestMenu
 import com.danidipp.sneakynpcs.menus.SelectionMenu
@@ -916,7 +917,7 @@ class ConfigManager(private val plugin: SneakyNPCs) {
 
     fun parseQuestMenuQuest(questYaml: Map<*, *>, npcId: String, path: String): Pair<NPCQuest?, List<Component>> {
         val errors = ValidationErrors()
-        val allowedKeys = setOf("quest", "dialogue", "items")
+        val allowedKeys = setOf("quest", "dialogue", "hint", "items")
         val unknownKeys = questYaml.keys.filterIsInstance<String>().filterNot { it in allowedKeys }
         if (unknownKeys.isNotEmpty()) {
             errors.add(path, "Unknown quest keys ${unknownKeys.joinToString(", ")}")
@@ -932,6 +933,11 @@ class ConfigManager(private val plugin: SneakyNPCs) {
         }
         if (dialogueId.isBlank()) {
             errors.add("$path.dialogue", "Cannot be blank")
+            return Pair(null, errors)
+        }
+        val (hint, hintErrors) = parseQuestMenuQuestHint(questYaml["hint"], "$path.hint")
+        if (hintErrors.isNotEmpty()) {
+            errors.addAll(hintErrors)
             return Pair(null, errors)
         }
 
@@ -954,7 +960,48 @@ class ConfigManager(private val plugin: SneakyNPCs) {
             }
             if (item != null) items.add(item)
         }
-        return Pair(NPCQuest(quest = questId, dialogue = dialogueId, items = items), errors.toList())
+        return Pair(NPCQuest(quest = questId, dialogue = dialogueId, hint = hint, items = items), errors.toList())
+    }
+
+    fun parseQuestMenuQuestHint(hintYaml: Any?, path: String): Pair<NPCQuestHint?, List<Component>> {
+        val errors = ValidationErrors()
+        if (hintYaml == null) return Pair(null, errors)
+
+        val hintMap = asObjectMap(hintYaml) ?: run {
+            errors.add(path, "Hint must be an object, got ${describeValue(hintYaml)}")
+            return Pair(null, errors)
+        }
+        val allowedKeys = setOf("title", "body")
+        val unknownKeys = hintMap.keys.filterIsInstance<String>().filterNot { it in allowedKeys }
+        if (unknownKeys.isNotEmpty()) {
+            errors.add(path, "Unknown quest hint keys ${unknownKeys.joinToString(", ")}")
+        }
+
+        val title = hintMap["title"] as? String ?: run {
+            errors.add("$path.title", "Missing or invalid field")
+            return Pair(null, errors)
+        }
+        if (title.isBlank()) {
+            errors.add("$path.title", "Cannot be blank")
+            return Pair(null, errors)
+        }
+
+        val bodyYaml = hintMap["body"] as? List<*> ?: run {
+            errors.add("$path.body", "Missing or invalid field")
+            return Pair(null, errors)
+        }
+        val body = mutableListOf<String>()
+        for ((lineIndex, lineEntry) in bodyYaml.withIndex()) {
+            val line = lineEntry as? String
+            if (line == null) {
+                errors.add("$path.body[$lineIndex]", "Expected string, got ${describeValue(lineEntry)}")
+                continue
+            }
+            body.add(line)
+        }
+        if (errors.isNotEmpty()) return Pair(null, errors.toList())
+
+        return Pair(NPCQuestHint(title = title, body = body), errors.toList())
     }
 
     fun parseQuestMenuQuestItem(itemYaml: Map<*, *>, npcId: String, path: String): Pair<NPCQuestItem?, List<Component>> {

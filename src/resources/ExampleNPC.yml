@@ -14,6 +14,12 @@ rootMenu:
       quests:
         - quest: learning_to_jack_1
           dialogue: learning_to_jack
+          hint:
+            title: "<gold>Learning to Jack"
+            body:
+              - <yellow>Hint:<white> You can learn wood at the lumbermill
+              - <white>behind the mountain in Dwarven District,
+              - <white>ask a guard for directions!
           items:
             - item: item-wood-spruce
               amount: 99

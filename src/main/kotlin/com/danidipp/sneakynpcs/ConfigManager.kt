@@ -643,11 +643,11 @@ private fun parseQuestMenuQuestReputationRewardConfig(
     val amount = parseDoubleValue(rewardYaml["reputation"])
     if (amount == null) {
         errors.add("$path.reputation", "Missing or invalid field")
-    } else if (amount <= 0.0) {
-        errors.add("$path.reputation", "Must be > 0")
+    } else if (amount < 0.0) {
+        errors.add("$path.reputation", "Must be >= 0")
     }
 
-    if (errors.isNotEmpty() || amount == null || amount <= 0.0) {
+    if (errors.isNotEmpty() || amount == null || amount < 0.0) {
         return Pair(null, errors.toList())
     }
     return Pair(NPCQuestReputationReward(amount = amount), errors.toList())

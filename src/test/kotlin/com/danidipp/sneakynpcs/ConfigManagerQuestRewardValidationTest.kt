@@ -231,14 +231,11 @@ class ConfigManagerQuestRewardValidationTest {
     }
 
     @Test
-    fun `quest rewards reject zero reputation`() {
+    fun `quest rewards parse zero reputation as noop reward`() {
         val (reward, errors) = parseReward(mapOf("reputation" to 0))
 
-        assertNull(reward)
-        assertEquals(
-            listOf(" - rootMenu.quests[0].reward[0].reputation: Must be > 0"),
-            errors.map(serializer::serialize),
-        )
+        assertTrue(errors.isEmpty())
+        assertEquals(0.0, assertIs<NPCQuestReputationReward>(reward).amount)
     }
 
     @Test
@@ -247,7 +244,7 @@ class ConfigManagerQuestRewardValidationTest {
 
         assertNull(reward)
         assertEquals(
-            listOf(" - rootMenu.quests[0].reward[0].reputation: Must be > 0"),
+            listOf(" - rootMenu.quests[0].reward[0].reputation: Must be >= 0"),
             errors.map(serializer::serialize),
         )
     }

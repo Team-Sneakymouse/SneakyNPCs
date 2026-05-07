@@ -11,9 +11,11 @@ import net.kyori.adventure.text.format.NamedTextColor
 import net.kyori.adventure.text.format.TextDecoration
 import net.kyori.adventure.text.minimessage.MiniMessage
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
+import org.bukkit.NamespacedKey
 import org.bukkit.entity.Player
 import org.bukkit.event.inventory.InventoryClickEvent
 import org.bukkit.inventory.ItemStack
+import org.bukkit.persistence.PersistentDataType
 
 data class NPCQuest(
     val quest: String,
@@ -30,6 +32,11 @@ data class NPCQuestHint(
 data class NPCQuestItem(
     val magicItem: MagicItem,
     val amount: Int
+)
+private data class QuestItemRequirement(
+    val magicItem: MagicItem,
+    val magicItemId: String,
+    val amount: Int,
 )
 sealed interface NPCQuestReward
 data class NPCQuestItemReward(
@@ -63,6 +70,7 @@ internal fun applyQuestVariableOperation(
 class QuestMenu(val quests: List<NPCQuest>) : NPCMenu(MenuType.QUEST) {
     val plugin = SneakyNPCs.getInstance()
     private val miniMessage = MiniMessage.miniMessage()
+    private val magicItemKey = NamespacedKey("magicspells", "magicitem")
 
     override fun open(gui: NPCGui, player: Player, playerData: PlayerData?) {
         val resolvedData = playerData ?: plugin.persistenceManager.dataCache[player.uniqueId]
@@ -154,17 +162,15 @@ class QuestMenu(val quests: List<NPCQuest>) : NPCMenu(MenuType.QUEST) {
             player.sendMessage("Quest has no items - uncompletable")
             return false // End of quest chain
         }
-        val itemCounts: MutableMap<MagicItem, Int> = mutableMapOf()
-        for (item in quest.items) {
-            itemCounts[item.magicItem] = (itemCounts[item.magicItem] ?: 0) + item.amount
-        }
+        val requirements = tallyQuestItemRequirements(quest) ?: return false
 
-        for ((requiredMagicItem, requiredAmount) in itemCounts) {
-            val ownedItems = player.inventory.filter { it?.isSimilar(requiredMagicItem.itemStack) == true }
-            val ownedAmount = ownedItems.sumOf { it.amount }
-            if (ownedAmount < requiredAmount) {
-                val itemName = PlainTextComponentSerializer.plainText().serialize(requiredMagicItem.itemStack.displayName())
-                plugin.logger.warning("Player ${player.name} doesn't have enough ${itemName}: $ownedAmount/$requiredAmount")
+        for (requirement in requirements) {
+            val ownedAmount = player.inventory.sumOf { stack ->
+                if (magicItemId(stack) == requirement.magicItemId) stack?.amount ?: 0 else 0
+            }
+            if (ownedAmount < requirement.amount) {
+                val itemName = PlainTextComponentSerializer.plainText().serialize(requirement.magicItem.itemStack.displayName())
+                plugin.logger.warning("Player ${player.name} doesn't have enough ${itemName}: $ownedAmount/${requirement.amount}")
                 return false
             }
         }
@@ -185,21 +191,17 @@ class QuestMenu(val quests: List<NPCQuest>) : NPCMenu(MenuType.QUEST) {
             return
         }
 
-        // Tally up amounts for each unique MagicItem
-        val itemCounts: MutableMap<MagicItem, Int> = mutableMapOf()
-        for (item in quest.items) {
-            itemCounts[item.magicItem] = (itemCounts[item.magicItem] ?: 0) + item.amount
-        }
+        val requirements = tallyQuestItemRequirements(quest) ?: return
 
         // Remove required amounts from player's inventory
-        for ((requiredMagicItem, requiredAmount) in itemCounts) {
-            var remaining = requiredAmount
+        for (requirement in requirements) {
+            var remaining = requirement.amount
             val inv = player.inventory
 
             for (slot in 0 until inv.size) {
                 if (remaining <= 0) break
                 val stack = inv.getItem(slot) ?: continue
-                if (!stack.isSimilar(requiredMagicItem.itemStack)) continue
+                if (magicItemId(stack) != requirement.magicItemId) continue
 
                 val take = minOf(stack.amount, remaining)
                 if (stack.amount > take) {
@@ -217,8 +219,8 @@ class QuestMenu(val quests: List<NPCQuest>) : NPCMenu(MenuType.QUEST) {
 
         plugin.inventoryTransactionLogger.log(
             player = player,
-            removedItems = itemCounts.flatMap { (requiredMagicItem, requiredAmount) ->
-                InventoryAuditItems.split(requiredMagicItem.itemStack, requiredAmount.toLong())
+            removedItems = requirements.flatMap { requirement ->
+                InventoryAuditItems.split(requirement.magicItem.itemStack, requirement.amount.toLong())
             },
             addedItems = quest.rewards.filterIsInstance<NPCQuestItemReward>().flatMap { reward ->
                 InventoryAuditItems.split(reward.magicItem.itemStack, reward.amount.toLong())
@@ -266,6 +268,33 @@ class QuestMenu(val quests: List<NPCQuest>) : NPCMenu(MenuType.QUEST) {
             remaining -= stackAmount
         }
         return stacks
+    }
+
+    private fun tallyQuestItemRequirements(quest: NPCQuest): List<QuestItemRequirement>? {
+        val requirements = linkedMapOf<String, QuestItemRequirement>()
+        for (item in quest.items) {
+            val magicItemId = magicItemId(item.magicItem.itemStack) ?: run {
+                plugin.logger.warning(
+                    "Quest '${quest.quest}' requires a MagicItem whose template lacks " +
+                        "'magicspells:magicitem' persistent data"
+                )
+                return null
+            }
+            val current = requirements[magicItemId]
+            requirements[magicItemId] = if (current == null) {
+                QuestItemRequirement(item.magicItem, magicItemId, item.amount)
+            } else {
+                current.copy(amount = current.amount + item.amount)
+            }
+        }
+        return requirements.values.toList()
+    }
+
+    private fun magicItemId(stack: ItemStack?): String? {
+        return stack?.itemMeta
+            ?.persistentDataContainer
+            ?.get(magicItemKey, PersistentDataType.STRING)
+            ?.takeIf { it.isNotBlank() }
     }
 
 }

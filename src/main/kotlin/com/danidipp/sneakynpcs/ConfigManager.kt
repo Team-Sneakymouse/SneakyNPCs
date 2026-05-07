@@ -6,6 +6,10 @@ import com.danidipp.sneakynpcs.menus.NPCMenu
 import com.danidipp.sneakynpcs.menus.NPCQuest
 import com.danidipp.sneakynpcs.menus.NPCQuestHint
 import com.danidipp.sneakynpcs.menus.NPCQuestItem
+import com.danidipp.sneakynpcs.menus.NPCQuestItemReward
+import com.danidipp.sneakynpcs.menus.NPCQuestReward
+import com.danidipp.sneakynpcs.menus.NPCQuestVariableOperation
+import com.danidipp.sneakynpcs.menus.NPCQuestVariableReward
 import com.danidipp.sneakynpcs.menus.QuestMenu
 import com.danidipp.sneakynpcs.menus.SelectionMenu
 import com.danidipp.sneakynpcs.menus.ShopMenu
@@ -474,6 +478,157 @@ private fun parseIntValue(raw: Any?): Int? = when (raw) {
     else -> null
 }
 
+private fun parseDoubleValue(raw: Any?): Double? = when (raw) {
+    is Double -> raw
+    is Float -> raw.toDouble()
+    is Int -> raw.toDouble()
+    is Long -> raw.toDouble()
+    is String -> raw.toDoubleOrNull()
+    is Number -> raw.toDouble()
+    else -> null
+}
+
+internal fun parseQuestMenuQuestRewardsConfig(
+    rawRewards: Any?,
+    path: String,
+    itemLookup: (String) -> MagicItem?,
+    hasVariable: (String) -> Boolean,
+): Pair<List<NPCQuestReward>, List<Component>> {
+    val errors = ValidationErrors()
+    val rewardsYaml = rawRewards as? List<*> ?: run {
+        errors.add(path, "Missing or invalid field")
+        return Pair(emptyList(), errors.toList())
+    }
+    if (rewardsYaml.isEmpty()) {
+        errors.add(path, "List is empty")
+        return Pair(emptyList(), errors.toList())
+    }
+
+    val rewards = mutableListOf<NPCQuestReward>()
+    for ((rewardIndex, rewardEntry) in rewardsYaml.withIndex()) {
+        val rewardMap = asConfigMap(rewardEntry)
+        if (rewardMap == null) {
+            errors.add("$path[$rewardIndex]", "Reward must be an object, got ${describeConfigValue(rewardEntry)}")
+            continue
+        }
+        val (reward, rewardErrors) = parseQuestMenuQuestRewardConfig(
+            rewardYaml = rewardMap,
+            path = "$path[$rewardIndex]",
+            itemLookup = itemLookup,
+            hasVariable = hasVariable,
+        )
+        errors.addAll(rewardErrors)
+        if (reward != null) rewards.add(reward)
+    }
+
+    return Pair(rewards, errors.toList())
+}
+
+internal fun parseQuestMenuQuestRewardConfig(
+    rewardYaml: Map<*, *>,
+    path: String,
+    itemLookup: (String) -> MagicItem?,
+    hasVariable: (String) -> Boolean,
+): Pair<NPCQuestReward?, List<Component>> {
+    val errors = ValidationErrors()
+    val hasItem = rewardYaml["item"] != null
+    val hasVariableKey = rewardYaml["variable"] != null
+
+    if (hasItem && hasVariableKey) {
+        errors.add(path, "Reward must define exactly one of 'item' or 'variable'")
+        return Pair(null, errors.toList())
+    }
+    if (!hasItem && !hasVariableKey) {
+        errors.add(path, "Reward must define exactly one of 'item' or 'variable'")
+        return Pair(null, errors.toList())
+    }
+
+    return if (hasItem) {
+        parseQuestMenuQuestItemRewardConfig(rewardYaml, path, itemLookup)
+    } else {
+        parseQuestMenuQuestVariableRewardConfig(rewardYaml, path, hasVariable)
+    }
+}
+
+private fun parseQuestMenuQuestItemRewardConfig(
+    rewardYaml: Map<*, *>,
+    path: String,
+    itemLookup: (String) -> MagicItem?,
+): Pair<NPCQuestReward?, List<Component>> {
+    val errors = ValidationErrors()
+    val allowedKeys = setOf("item", "amount")
+    val unknownKeys = rewardYaml.keys.filterIsInstance<String>().filterNot { it in allowedKeys }
+    if (unknownKeys.isNotEmpty()) {
+        errors.add(path, "Unknown quest reward item keys ${unknownKeys.joinToString(", ")}")
+    }
+
+    val itemId = rewardYaml["item"] as? String
+    if (itemId.isNullOrBlank()) {
+        errors.add("$path.item", "Missing or invalid field")
+    }
+    val magicItem = itemId?.takeIf { it.isNotBlank() }?.let { id ->
+        itemLookup(id) ?: run {
+            errors.add("$path.item", "Magic item '$id' not found")
+            null
+        }
+    }
+
+    val amount = parseIntValue(rewardYaml["amount"])
+    if (amount == null) {
+        errors.add("$path.amount", "Missing or invalid field")
+    } else if (amount <= 0) {
+        errors.add("$path.amount", "Must be > 0")
+    }
+
+    if (errors.isNotEmpty() || magicItem == null || amount == null || amount <= 0) {
+        return Pair(null, errors.toList())
+    }
+    return Pair(NPCQuestItemReward(magicItem = magicItem, amount = amount), errors.toList())
+}
+
+private fun parseQuestMenuQuestVariableRewardConfig(
+    rewardYaml: Map<*, *>,
+    path: String,
+    hasVariable: (String) -> Boolean,
+): Pair<NPCQuestReward?, List<Component>> {
+    val errors = ValidationErrors()
+    val allowedKeys = setOf("variable", "operation", "amount")
+    val unknownKeys = rewardYaml.keys.filterIsInstance<String>().filterNot { it in allowedKeys }
+    if (unknownKeys.isNotEmpty()) {
+        errors.add(path, "Unknown quest reward variable keys ${unknownKeys.joinToString(", ")}")
+    }
+
+    val variableName = rewardYaml["variable"] as? String
+    if (variableName.isNullOrBlank()) {
+        errors.add("$path.variable", "Missing or invalid field")
+    } else if (!hasVariable(variableName)) {
+        errors.add("$path.variable", "Unknown MagicVariable '$variableName'")
+    }
+
+    val operation = when (val rawOperation = rewardYaml["operation"]) {
+        "set" -> NPCQuestVariableOperation.SET
+        "add" -> NPCQuestVariableOperation.ADD
+        "subtract" -> NPCQuestVariableOperation.SUBTRACT
+        else -> {
+            errors.add("$path.operation", "Unknown variable operation '$rawOperation'. Expected one of: set, add, subtract")
+            null
+        }
+    }
+
+    val amount = parseDoubleValue(rewardYaml["amount"])
+    if (amount == null) {
+        errors.add("$path.amount", "Missing or invalid field")
+    }
+
+    if (errors.isNotEmpty() || variableName.isNullOrBlank() || operation == null || amount == null) {
+        return Pair(null, errors.toList())
+    }
+    return Pair(
+        NPCQuestVariableReward(variableName = variableName, operation = operation, amount = amount),
+        errors.toList(),
+    )
+}
+
 internal fun validateShopItemIdForStockPersistence(itemId: String): String? {
     if (itemId.contains('.')) {
         return "Magic item id may not contain '.'"
@@ -917,7 +1072,7 @@ class ConfigManager(private val plugin: SneakyNPCs) {
 
     fun parseQuestMenuQuest(questYaml: Map<*, *>, npcId: String, path: String): Pair<NPCQuest?, List<Component>> {
         val errors = ValidationErrors()
-        val allowedKeys = setOf("quest", "dialogue", "hint", "completion", "items")
+        val allowedKeys = setOf("quest", "dialogue", "hint", "completion", "items", "reward")
         val unknownKeys = questYaml.keys.filterIsInstance<String>().filterNot { it in allowedKeys }
         if (unknownKeys.isNotEmpty()) {
             errors.add(path, "Unknown quest keys ${unknownKeys.joinToString(", ")}")
@@ -965,7 +1120,15 @@ class ConfigManager(private val plugin: SneakyNPCs) {
             }
             if (item != null) items.add(item)
         }
-        return Pair(NPCQuest(quest = questId, dialogue = dialogueId, hint = hint, completion = completion, items = items), errors.toList())
+
+        val (rewards, rewardErrors) = parseQuestMenuQuestRewards(questYaml["reward"], "$path.reward")
+        if (rewardErrors.isNotEmpty()) {
+            errors.addAll(rewardErrors)
+            return Pair(null, errors.toList())
+        }
+
+        if (errors.isNotEmpty()) return Pair(null, errors.toList())
+        return Pair(NPCQuest(quest = questId, dialogue = dialogueId, hint = hint, completion = completion, items = items, rewards = rewards), errors.toList())
     }
 
     fun parseQuestMenuQuestHint(hintYaml: Any?, path: String): Pair<NPCQuestHint?, List<Component>> {
@@ -1044,6 +1207,24 @@ class ConfigManager(private val plugin: SneakyNPCs) {
         }
 
         return Pair(NPCQuestItem(magicItem = magicItem, amount = amount), errors.toList())
+    }
+
+    fun parseQuestMenuQuestRewards(rawRewards: Any?, path: String): Pair<List<NPCQuestReward>, List<Component>> {
+        return parseQuestMenuQuestRewardsConfig(
+            rawRewards = rawRewards,
+            path = path,
+            itemLookup = { itemId -> MagicItems.getMagicItemFromString(itemId) },
+            hasVariable = { variableName -> MagicSpells.getVariableManager().getVariable(variableName) != null },
+        )
+    }
+
+    fun parseQuestMenuQuestReward(rewardYaml: Map<*, *>, path: String): Pair<NPCQuestReward?, List<Component>> {
+        return parseQuestMenuQuestRewardConfig(
+            rewardYaml = rewardYaml,
+            path = path,
+            itemLookup = { itemId -> MagicItems.getMagicItemFromString(itemId) },
+            hasVariable = { variableName -> MagicSpells.getVariableManager().getVariable(variableName) != null },
+        )
     }
 
     fun parseShopMenu(menuYaml: Map<*, *>, npcId: String, path: String): Pair<ShopMenu?, List<Component>> {

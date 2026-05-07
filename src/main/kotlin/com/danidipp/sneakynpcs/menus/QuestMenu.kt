@@ -4,6 +4,7 @@ import com.danidipp.sneakynpcs.InventoryAuditItems
 import com.danidipp.sneakynpcs.NPCGui
 import com.danidipp.sneakynpcs.PlayerData
 import com.danidipp.sneakynpcs.SneakyNPCs
+import com.nisovin.magicspells.MagicSpells
 import com.nisovin.magicspells.util.magicitems.MagicItem
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.NamedTextColor
@@ -12,13 +13,15 @@ import net.kyori.adventure.text.minimessage.MiniMessage
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
 import org.bukkit.entity.Player
 import org.bukkit.event.inventory.InventoryClickEvent
+import org.bukkit.inventory.ItemStack
 
 data class NPCQuest(
     val quest: String,
     val dialogue: String,
     val hint: NPCQuestHint?,
     val completion: NPCQuestHint?,
-    val items: List<NPCQuestItem>
+    val items: List<NPCQuestItem>,
+    val rewards: List<NPCQuestReward>
 )
 data class NPCQuestHint(
     val title: String,
@@ -28,6 +31,31 @@ data class NPCQuestItem(
     val magicItem: MagicItem,
     val amount: Int
 )
+sealed interface NPCQuestReward
+data class NPCQuestItemReward(
+    val magicItem: MagicItem,
+    val amount: Int,
+) : NPCQuestReward
+data class NPCQuestVariableReward(
+    val variableName: String,
+    val operation: NPCQuestVariableOperation,
+    val amount: Double,
+) : NPCQuestReward
+enum class NPCQuestVariableOperation {
+    SET,
+    ADD,
+    SUBTRACT,
+}
+
+internal fun applyQuestVariableOperation(
+    current: Double,
+    operation: NPCQuestVariableOperation,
+    amount: Double,
+): Double = when (operation) {
+    NPCQuestVariableOperation.SET -> amount
+    NPCQuestVariableOperation.ADD -> current + amount
+    NPCQuestVariableOperation.SUBTRACT -> current - amount
+}
 
 class QuestMenu(val quests: List<NPCQuest>) : NPCMenu(MenuType.QUEST) {
     val plugin = SneakyNPCs.getInstance()
@@ -142,6 +170,18 @@ class QuestMenu(val quests: List<NPCQuest>) : NPCMenu(MenuType.QUEST) {
 
     // Pre-check: quest is current quest, quest is completable
     private fun completeQuest(player: Player, playerData: PlayerData, quest: NPCQuest) {
+        val missingRewardVariable = quest.rewards
+            .filterIsInstance<NPCQuestVariableReward>()
+            .firstOrNull { MagicSpells.getVariableManager().getVariable(it.variableName) == null }
+        if (missingRewardVariable != null) {
+            plugin.logger.warning(
+                "Failed to complete quest '${quest.quest}' for player '${player.name}': " +
+                    "reward variable '${missingRewardVariable.variableName}' is not configured"
+            )
+            player.sendMessage(plugin.prefix.append(Component.text("Quest rewards are not configured correctly. Please tell Dani.", NamedTextColor.RED)))
+            return
+        }
+
         // Tally up amounts for each unique MagicItem
         val itemCounts: MutableMap<MagicItem, Int> = mutableMapOf()
         for (item in quest.items) {
@@ -170,15 +210,58 @@ class QuestMenu(val quests: List<NPCQuest>) : NPCMenu(MenuType.QUEST) {
             }
         }
 
+        applyQuestRewards(player, quest.rewards)
+
         plugin.inventoryTransactionLogger.log(
             player = player,
             removedItems = itemCounts.flatMap { (requiredMagicItem, requiredAmount) ->
                 InventoryAuditItems.split(requiredMagicItem.itemStack, requiredAmount.toLong())
-            }
+            },
+            addedItems = quest.rewards.filterIsInstance<NPCQuestItemReward>().flatMap { reward ->
+                InventoryAuditItems.split(reward.magicItem.itemStack, reward.amount.toLong())
+            },
         )
 
         playerData.completeQuest(quest.quest)
         player.sendMessage(plugin.prefix.append(Component.text("Quest completed!", NamedTextColor.GREEN)))
+    }
+
+    private fun applyQuestRewards(player: Player, rewards: List<NPCQuestReward>) {
+        for (reward in rewards) {
+            when (reward) {
+                is NPCQuestItemReward -> deliverItemReward(player, reward)
+                is NPCQuestVariableReward -> applyVariableReward(player, reward)
+            }
+        }
+    }
+
+    private fun applyVariableReward(player: Player, reward: NPCQuestVariableReward) {
+        val variableManager = MagicSpells.getVariableManager()
+        val current = variableManager.getValue(reward.variableName, player)
+        val next = applyQuestVariableOperation(current, reward.operation, reward.amount)
+        variableManager.set(reward.variableName, player, next)
+    }
+
+    private fun deliverItemReward(player: Player, reward: NPCQuestItemReward) {
+        for (stack in splitRewardItem(reward.magicItem.itemStack, reward.amount)) {
+            val leftovers = player.inventory.addItem(stack)
+            for (leftover in leftovers.values) {
+                player.world.dropItemNaturally(player.location, leftover)
+            }
+        }
+    }
+
+    private fun splitRewardItem(template: ItemStack, amount: Int): List<ItemStack> {
+        if (amount <= 0 || template.type.isAir) return emptyList()
+        val maxStackSize = template.maxStackSize.coerceAtLeast(1)
+        val stacks = mutableListOf<ItemStack>()
+        var remaining = amount
+        while (remaining > 0) {
+            val stackAmount = minOf(maxStackSize, remaining)
+            stacks += template.clone().apply { this.amount = stackAmount }
+            remaining -= stackAmount
+        }
+        return stacks
     }
 
 }

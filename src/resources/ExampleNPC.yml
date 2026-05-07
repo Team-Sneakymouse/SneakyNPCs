@@ -28,6 +28,12 @@ rootMenu:
             body:
               - <yellow>Reward:<white> 100 silver
               - <white>and access to new items in the shop!
+          reward:
+            - item: money-silver
+              amount: 100
+            - variable: shop_lumberjack_unlocked
+              operation: set
+              amount: 1
         - quest: learning_to_jack_2
           dialogue: learning_to_jack
           items:
@@ -35,6 +41,10 @@ rootMenu:
               amount: 99
             - item: item-wood-birch
               amount: 99
+          reward:
+            - variable: shop_lumberjack_unlocked
+              operation: set
+              amount: 1
     - type: shop
       bankDisplay:
         - gold

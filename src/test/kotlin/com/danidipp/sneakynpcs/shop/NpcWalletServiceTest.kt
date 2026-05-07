@@ -127,7 +127,6 @@ class NpcWalletServiceTest {
             id = "merchant",
             style = "merchant",
             friendship = false,
-            reputation = "",
             wallet = NpcWalletConfig(
                 currencyId = "gold",
                 max = walletMax,

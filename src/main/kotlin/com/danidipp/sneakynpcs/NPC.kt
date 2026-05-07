@@ -6,7 +6,6 @@ data class NPC (
     val id: String,
     val style: String,
     val friendship: Boolean,
-    val reputation: String,
     val wallet: NpcWalletConfig,
     val rootMenu: NPCMenu,
 ) {

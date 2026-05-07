@@ -1,6 +1,7 @@
 package com.danidipp.sneakynpcs
 
 import com.danidipp.sneakynpcs.menus.NPCQuestItemReward
+import com.danidipp.sneakynpcs.menus.NPCQuestReputationReward
 import com.danidipp.sneakynpcs.menus.NPCQuestVariableOperation
 import com.danidipp.sneakynpcs.menus.NPCQuestVariableReward
 import com.danidipp.sneakynpcs.menus.applyQuestVariableOperation
@@ -52,6 +53,17 @@ class ConfigManagerQuestRewardValidationTest {
     }
 
     @Test
+    fun `quest rewards parse reputation reward successfully`() {
+        val (rewards, errors) = parseRewards(
+            listOf(mapOf("reputation" to 12.5)),
+        )
+
+        assertTrue(errors.isEmpty())
+        val reward = assertIs<NPCQuestReputationReward>(rewards.single())
+        assertEquals(12.5, reward.amount)
+    }
+
+    @Test
     fun `quest rewards reject omitted reward`() {
         val (rewards, errors) = parseRewards(null)
 
@@ -92,7 +104,29 @@ class ConfigManagerQuestRewardValidationTest {
 
         assertNull(reward)
         assertEquals(
-            listOf(" - rootMenu.quests[0].reward[0]: Reward must define exactly one of 'item' or 'variable'"),
+            listOf(" - rootMenu.quests[0].reward[0]: Reward must define exactly one of 'item', 'variable', or 'reputation'"),
+            errors.map(serializer::serialize),
+        )
+    }
+
+    @Test
+    fun `quest rewards reject entries with both item and reputation`() {
+        val (reward, errors) = parseReward(mapOf("item" to "money-silver", "reputation" to 1.0, "amount" to 1))
+
+        assertNull(reward)
+        assertEquals(
+            listOf(" - rootMenu.quests[0].reward[0]: Reward must define exactly one of 'item', 'variable', or 'reputation'"),
+            errors.map(serializer::serialize),
+        )
+    }
+
+    @Test
+    fun `quest rewards reject entries with both variable and reputation`() {
+        val (reward, errors) = parseReward(mapOf("variable" to "shop_lumberjack_unlocked", "operation" to "set", "amount" to 1, "reputation" to 1.0))
+
+        assertNull(reward)
+        assertEquals(
+            listOf(" - rootMenu.quests[0].reward[0]: Reward must define exactly one of 'item', 'variable', or 'reputation'"),
             errors.map(serializer::serialize),
         )
     }
@@ -103,7 +137,7 @@ class ConfigManagerQuestRewardValidationTest {
 
         assertNull(reward)
         assertEquals(
-            listOf(" - rootMenu.quests[0].reward[0]: Reward must define exactly one of 'item' or 'variable'"),
+            listOf(" - rootMenu.quests[0].reward[0]: Reward must define exactly one of 'item', 'variable', or 'reputation'"),
             errors.map(serializer::serialize),
         )
     }
@@ -192,6 +226,39 @@ class ConfigManagerQuestRewardValidationTest {
         assertNull(reward)
         assertEquals(
             listOf(" - rootMenu.quests[0].reward[0].operation: Unknown variable operation 'substract'. Expected one of: set, add, subtract"),
+            errors.map(serializer::serialize),
+        )
+    }
+
+    @Test
+    fun `quest rewards reject zero reputation`() {
+        val (reward, errors) = parseReward(mapOf("reputation" to 0))
+
+        assertNull(reward)
+        assertEquals(
+            listOf(" - rootMenu.quests[0].reward[0].reputation: Must be > 0"),
+            errors.map(serializer::serialize),
+        )
+    }
+
+    @Test
+    fun `quest rewards reject negative reputation`() {
+        val (reward, errors) = parseReward(mapOf("reputation" to -1.5))
+
+        assertNull(reward)
+        assertEquals(
+            listOf(" - rootMenu.quests[0].reward[0].reputation: Must be > 0"),
+            errors.map(serializer::serialize),
+        )
+    }
+
+    @Test
+    fun `quest rewards reject non number reputation`() {
+        val (reward, errors) = parseReward(mapOf("reputation" to "much"))
+
+        assertNull(reward)
+        assertEquals(
+            listOf(" - rootMenu.quests[0].reward[0].reputation: Missing or invalid field"),
             errors.map(serializer::serialize),
         )
     }

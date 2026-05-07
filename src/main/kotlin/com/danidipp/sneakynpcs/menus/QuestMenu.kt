@@ -41,6 +41,9 @@ data class NPCQuestVariableReward(
     val operation: NPCQuestVariableOperation,
     val amount: Double,
 ) : NPCQuestReward
+data class NPCQuestReputationReward(
+    val amount: Double,
+) : NPCQuestReward
 enum class NPCQuestVariableOperation {
     SET,
     ADD,
@@ -128,7 +131,7 @@ class QuestMenu(val quests: List<NPCQuest>) : NPCMenu(MenuType.QUEST) {
 
         if (event.slot in 23..26) {
             if (!questCompletable(player, currentQuest)) return
-            completeQuest(player, playerData, currentQuest)
+            completeQuest(player, playerData, gui.npc.id, currentQuest)
             gui.close()
         }
     }
@@ -169,7 +172,7 @@ class QuestMenu(val quests: List<NPCQuest>) : NPCMenu(MenuType.QUEST) {
     }
 
     // Pre-check: quest is current quest, quest is completable
-    private fun completeQuest(player: Player, playerData: PlayerData, quest: NPCQuest) {
+    private fun completeQuest(player: Player, playerData: PlayerData, npcId: String, quest: NPCQuest) {
         val missingRewardVariable = quest.rewards
             .filterIsInstance<NPCQuestVariableReward>()
             .firstOrNull { MagicSpells.getVariableManager().getVariable(it.variableName) == null }
@@ -210,7 +213,7 @@ class QuestMenu(val quests: List<NPCQuest>) : NPCMenu(MenuType.QUEST) {
             }
         }
 
-        applyQuestRewards(player, quest.rewards)
+        applyQuestRewards(player, playerData, quest.rewards, npcId)
 
         plugin.inventoryTransactionLogger.log(
             player = player,
@@ -226,10 +229,11 @@ class QuestMenu(val quests: List<NPCQuest>) : NPCMenu(MenuType.QUEST) {
         player.sendMessage(plugin.prefix.append(Component.text("Quest completed!", NamedTextColor.GREEN)))
     }
 
-    private fun applyQuestRewards(player: Player, rewards: List<NPCQuestReward>) {
+    private fun applyQuestRewards(player: Player, playerData: PlayerData, rewards: List<NPCQuestReward>, npcId: String) {
         for (reward in rewards) {
             when (reward) {
                 is NPCQuestItemReward -> deliverItemReward(player, reward)
+                is NPCQuestReputationReward -> playerData.addReputation(npcId, reward.amount)
                 is NPCQuestVariableReward -> applyVariableReward(player, reward)
             }
         }

@@ -23,7 +23,7 @@ import java.util.concurrent.ConcurrentMap
 class PlayerData(
     val uuid: UUID,
     private val completedQuests: MutableSet<String>,
-    private val reputation: MutableMap<String, Int>,
+    private val reputation: MutableMap<String, Double>,
     private val npcWallets: MutableMap<String, NpcWalletState>,
     private val shopItemStocks: MutableMap<String, MutableMap<String, ShopItemStockState>>,
 ) {
@@ -51,19 +51,30 @@ class PlayerData(
     }
 
     @Synchronized
-    fun getReputation(guildId: String): Int {
-        return reputation.getOrDefault(guildId, 0)
+    fun getReputation(npcId: String): Double {
+        return reputation.getOrDefault(npcId, 0.0)
     }
     @Synchronized
-    fun setReputation(guildId: String, amount: Int) {
-        if (reputation[guildId] != amount) {
-            reputation[guildId] = amount
+    fun setReputation(npcId: String, amount: Double) {
+        if (amount == 0.0) {
+            if (reputation.remove(npcId) != null) {
+                isDirty = true
+            }
+            return
+        }
+        if (reputation[npcId] != amount) {
+            reputation[npcId] = amount
             isDirty = true
         }
     }
 
     @Synchronized
-    fun getReputationEntries(): Map<String, Int> = reputation.toMap()
+    fun addReputation(npcId: String, amount: Double) {
+        setReputation(npcId, getReputation(npcId) + amount)
+    }
+
+    @Synchronized
+    fun getReputationEntries(): Map<String, Double> = reputation.toMap()
 
     @Synchronized
     fun getNpcWalletState(npcId: String): NpcWalletState? {
@@ -104,8 +115,10 @@ class PlayerData(
     fun toYaml(): YamlConfiguration {
         val config = YamlConfiguration()
         config.set("completedQuests", completedQuests.toList())
-        for ((guildId, amount) in reputation) {
-            config.set("reputation.$guildId", amount)
+        for ((npcId, amount) in reputation) {
+            if (amount != 0.0) {
+                config.set("reputation.$npcId", amount)
+            }
         }
         for ((npcId, walletState) in npcWallets) {
             config.set("npcWallets.$npcId.nativeCurrency", walletState.nativeCurrencyId)
@@ -124,13 +137,21 @@ class PlayerData(
     }
 }
 
-internal fun loadPlayerDataFromConfig(uuid: UUID, config: YamlConfiguration): PlayerData {
+internal fun loadPlayerDataFromConfig(
+    uuid: UUID,
+    config: YamlConfiguration,
+    knownNpcIds: Set<String>? = null,
+): PlayerData {
     val completedQuests = config.getStringList("completedQuests").toMutableSet()
 
-    val reputation = mutableMapOf<String, Int>()
+    val reputation = mutableMapOf<String, Double>()
     config.getConfigurationSection("reputation")?.let { section ->
         for (key in section.getKeys(false)) {
-            reputation[key] = section.getInt(key)
+            if (knownNpcIds != null && key !in knownNpcIds) continue
+            val amount = section.getDouble(key)
+            if (amount != 0.0) {
+                reputation[key] = amount
+            }
         }
     }
 
@@ -280,7 +301,7 @@ class PersistenceManager(val plugin: SneakyNPCs): Listener {
                     }
                 }
 
-                val playerData = loadPlayerDataFromConfig(uuid, config)
+                val playerData = loadPlayerDataFromConfig(uuid, config, plugin.npcs.keys)
                 plugin.logger.warning(
                     "Loaded player data for $uuid: ${playerData.getCompletedQuests(null).size} completed quests, " +
                         "${playerData.getReputationEntries().size} reputation entries, ${playerData.getNpcWalletCount()} npc wallets, " +

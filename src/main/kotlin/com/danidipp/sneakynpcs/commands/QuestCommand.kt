@@ -90,6 +90,9 @@ object QuestCommand {
                                 .forEach { builder.suggest(it) }
                             builder.buildFuture()
                         }
+                        .executes { ctx ->
+                            executeResetAllNpcQuests(ctx)
+                        }
                         .then(Commands.argument("quest", StringArgumentType.word())
                             .suggests { ctx, builder ->
                                 val npcId = try { ctx.getArgument("npc", String::class.java) } catch (e: Exception) { null }
@@ -135,6 +138,52 @@ object QuestCommand {
                     )
                 )
             )
+    }
+
+    private fun executeResetAllNpcQuests(ctx: com.mojang.brigadier.context.CommandContext<io.papermc.paper.command.brigadier.CommandSourceStack>): Int {
+        val npcId = ctx.getArgument("npc", String::class.java)
+        val npc = plugin.npcs[npcId] ?: run {
+            ctx.source.sender.sendMessage(plugin.prefix.append(Component.text("NPC with ID '$npcId' not found.", NamedTextColor.RED)))
+            return Command.SINGLE_SUCCESS
+        }
+
+        val questIds = npc.allMenus
+            .filterIsInstance<QuestMenu>()
+            .flatMap { menu -> menu.quests.map { it.quest } }
+            .toSet()
+
+        if (questIds.isEmpty()) {
+            ctx.source.sender.sendMessage(plugin.prefix.append(Component.text("This NPC does not have any quests.", NamedTextColor.RED)))
+            return Command.SINGLE_SUCCESS
+        }
+
+        val playerResolver = ctx.getArgument("player", PlayerSelectorArgumentResolver::class.java)
+        val player: Player = playerResolver.resolve(ctx.source).firstOrNull() ?: run {
+            ctx.source.sender.sendMessage(plugin.prefix.append(Component.text("Player not found.", NamedTextColor.RED)))
+            return Command.SINGLE_SUCCESS
+        }
+
+        plugin.persistenceManager.getPlayerData(player.uniqueId).thenAccept { playerData ->
+            val completedQuestIds = playerData.getCompletedQuests(null)
+            val resetCount = questIds.count { it in completedQuestIds }
+            for (questId in questIds) {
+                playerData.removeQuest(questId)
+            }
+
+            ctx.source.sender.sendMessage(plugin.prefix.append(
+                Component.text("Reset ", NamedTextColor.GRAY)
+                    .append(Component.text(resetCount.toString(), NamedTextColor.YELLOW))
+                    .append(Component.text(" completed quest", NamedTextColor.GRAY))
+                    .append(Component.text(if (resetCount == 1) "" else "s", NamedTextColor.GRAY))
+                    .append(Component.text(" for ", NamedTextColor.GRAY))
+                    .append(Component.text(player.name, NamedTextColor.GOLD))
+                    .append(Component.text(" with NPC ", NamedTextColor.GRAY))
+                    .append(Component.text(npc.id, NamedTextColor.GOLD))
+                    .append(Component.text(".", NamedTextColor.GRAY))
+            ))
+        }
+
+        return Command.SINGLE_SUCCESS
     }
 
     private fun executeQuestAction(ctx: com.mojang.brigadier.context.CommandContext<io.papermc.paper.command.brigadier.CommandSourceStack>, complete: Boolean): Int {

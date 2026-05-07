@@ -1,6 +1,5 @@
 style: jacktimbers
 friendship: false # not implemented
-reputation: CopperGuild # not implemented
 wallet:
   currency: silver
   max: 50
@@ -29,6 +28,7 @@ rootMenu:
               - <yellow>Reward:<white> 100 silver
               - <white>and access to new items in the shop!
           reward:
+            - reputation: 12.5
             - item: money-silver
               amount: 100
             - variable: shop_lumberjack_unlocked

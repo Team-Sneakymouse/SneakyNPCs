@@ -2,6 +2,7 @@ package com.danidipp.sneakynpcs.menus
 
 import com.danidipp.sneakynpcs.NPCGui
 import com.danidipp.sneakynpcs.PlayerData
+import com.danidipp.sneakynpcs.SneakyNPCs
 import org.bukkit.entity.Player
 import org.bukkit.event.inventory.InventoryClickEvent
 
@@ -17,8 +18,10 @@ class SelectionMenu(
         inv.clear()
         inv.setItem(0, makeItem(npc.guiModelKey, guiId, hideTooltip))
         if (npc.friendship) inv.setItem(1, makeItem("lom:npcs/friendship", 0, hideTooltip))
-        val rep = 0 // TODO: Get player reputation for npc's guild
-        if (rep >= 10) inv.setItem(51, makeItem("lom:npcs/progressbar-reputation", rep, hideTooltip))
+        val rep = playerData?.getReputation(npc.id)
+            ?: SneakyNPCs.getInstance().persistenceManager.dataCache[player.uniqueId]?.getReputation(npc.id)
+            ?: 0.0
+        if (rep >= 10.0) inv.setItem(51, makeItem("lom:npcs/progressbar-reputation", rep, hideTooltip))
     }
 
     override fun onClick(gui: NPCGui, event: InventoryClickEvent) {

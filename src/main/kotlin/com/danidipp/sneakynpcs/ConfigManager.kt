@@ -7,6 +7,7 @@ import com.danidipp.sneakynpcs.menus.NPCQuest
 import com.danidipp.sneakynpcs.menus.NPCQuestHint
 import com.danidipp.sneakynpcs.menus.NPCQuestItem
 import com.danidipp.sneakynpcs.menus.NPCQuestItemReward
+import com.danidipp.sneakynpcs.menus.NPCQuestReputationReward
 import com.danidipp.sneakynpcs.menus.NPCQuestReward
 import com.danidipp.sneakynpcs.menus.NPCQuestVariableOperation
 import com.danidipp.sneakynpcs.menus.NPCQuestVariableReward
@@ -533,20 +534,19 @@ internal fun parseQuestMenuQuestRewardConfig(
     val errors = ValidationErrors()
     val hasItem = rewardYaml["item"] != null
     val hasVariableKey = rewardYaml["variable"] != null
+    val hasReputation = rewardYaml["reputation"] != null
 
-    if (hasItem && hasVariableKey) {
-        errors.add(path, "Reward must define exactly one of 'item' or 'variable'")
-        return Pair(null, errors.toList())
-    }
-    if (!hasItem && !hasVariableKey) {
-        errors.add(path, "Reward must define exactly one of 'item' or 'variable'")
+    if (listOf(hasItem, hasVariableKey, hasReputation).count { it } != 1) {
+        errors.add(path, "Reward must define exactly one of 'item', 'variable', or 'reputation'")
         return Pair(null, errors.toList())
     }
 
     return if (hasItem) {
         parseQuestMenuQuestItemRewardConfig(rewardYaml, path, itemLookup)
-    } else {
+    } else if (hasVariableKey) {
         parseQuestMenuQuestVariableRewardConfig(rewardYaml, path, hasVariable)
+    } else {
+        parseQuestMenuQuestReputationRewardConfig(rewardYaml, path)
     }
 }
 
@@ -627,6 +627,30 @@ private fun parseQuestMenuQuestVariableRewardConfig(
         NPCQuestVariableReward(variableName = variableName, operation = operation, amount = amount),
         errors.toList(),
     )
+}
+
+private fun parseQuestMenuQuestReputationRewardConfig(
+    rewardYaml: Map<*, *>,
+    path: String,
+): Pair<NPCQuestReward?, List<Component>> {
+    val errors = ValidationErrors()
+    val allowedKeys = setOf("reputation")
+    val unknownKeys = rewardYaml.keys.filterIsInstance<String>().filterNot { it in allowedKeys }
+    if (unknownKeys.isNotEmpty()) {
+        errors.add(path, "Unknown quest reward reputation keys ${unknownKeys.joinToString(", ")}")
+    }
+
+    val amount = parseDoubleValue(rewardYaml["reputation"])
+    if (amount == null) {
+        errors.add("$path.reputation", "Missing or invalid field")
+    } else if (amount <= 0.0) {
+        errors.add("$path.reputation", "Must be > 0")
+    }
+
+    if (errors.isNotEmpty() || amount == null || amount <= 0.0) {
+        return Pair(null, errors.toList())
+    }
+    return Pair(NPCQuestReputationReward(amount = amount), errors.toList())
 }
 
 internal fun validateShopItemIdForStockPersistence(itemId: String): String? {
@@ -850,7 +874,6 @@ class ConfigManager(private val plugin: SneakyNPCs) {
         }
 
         val friendship = npcYaml.getBoolean("friendship", false)
-        val reputation = npcYaml.getString("reputation", "") ?: ""
         val wallet = parseWalletConfig(npcYaml.get("wallet"), npcId, errors)
 
         val rootMenuYaml = npcYaml.get("rootMenu")
@@ -877,7 +900,6 @@ class ConfigManager(private val plugin: SneakyNPCs) {
                 id = npcId,
                 style = style.ifBlank { "invalid_style" },
                 friendship = friendship,
-                reputation = reputation,
                 wallet = wallet ?: NpcWalletConfig(currencyId = "invalid_wallet_currency", max = 1L, restockIntervalSeconds = 0L, restockAmount = 0L),
                 rootMenu = rootMenu ?: CustomMenu("invalid_root_menu")
             ),

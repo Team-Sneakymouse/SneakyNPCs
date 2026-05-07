@@ -3,6 +3,7 @@ package com.danidipp.sneakynpcs
 
 import com.danidipp.sneakynpcs.commands.OpenGUICommand
 import com.danidipp.sneakynpcs.commands.QuestCommand
+import com.danidipp.sneakynpcs.commands.ReputationCommand
 import com.danidipp.sneakynpcs.commands.ReloadCommand
 import com.danidipp.sneakynpcs.commands.WalletCommand
 import com.mojang.brigadier.builder.LiteralArgumentBuilder
@@ -19,6 +20,7 @@ object SneakNPCCommand {
         root.then(ReloadCommand.createCommand())
         root.then(OpenGUICommand.createCommand())
         root.then(QuestCommand.createCommand())
+        root.then(ReputationCommand.createCommand())
         root.then(WalletCommand.createCommand())
     }
 

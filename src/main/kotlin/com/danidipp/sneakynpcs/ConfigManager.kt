@@ -917,7 +917,7 @@ class ConfigManager(private val plugin: SneakyNPCs) {
 
     fun parseQuestMenuQuest(questYaml: Map<*, *>, npcId: String, path: String): Pair<NPCQuest?, List<Component>> {
         val errors = ValidationErrors()
-        val allowedKeys = setOf("quest", "dialogue", "hint", "items")
+        val allowedKeys = setOf("quest", "dialogue", "hint", "completion", "items")
         val unknownKeys = questYaml.keys.filterIsInstance<String>().filterNot { it in allowedKeys }
         if (unknownKeys.isNotEmpty()) {
             errors.add(path, "Unknown quest keys ${unknownKeys.joinToString(", ")}")
@@ -940,6 +940,11 @@ class ConfigManager(private val plugin: SneakyNPCs) {
             errors.addAll(hintErrors)
             return Pair(null, errors)
         }
+        val (completion, completionErrors) = parseQuestMenuQuestTooltip(questYaml["completion"], "$path.completion", "completion")
+        if (completionErrors.isNotEmpty()) {
+            errors.addAll(completionErrors)
+            return Pair(null, errors)
+        }
 
         val itemsYaml = questYaml["items"] as? List<*> ?: run {
             errors.add("$path.items", "Missing or invalid field")
@@ -960,21 +965,25 @@ class ConfigManager(private val plugin: SneakyNPCs) {
             }
             if (item != null) items.add(item)
         }
-        return Pair(NPCQuest(quest = questId, dialogue = dialogueId, hint = hint, items = items), errors.toList())
+        return Pair(NPCQuest(quest = questId, dialogue = dialogueId, hint = hint, completion = completion, items = items), errors.toList())
     }
 
     fun parseQuestMenuQuestHint(hintYaml: Any?, path: String): Pair<NPCQuestHint?, List<Component>> {
+        return parseQuestMenuQuestTooltip(hintYaml, path, "hint")
+    }
+
+    fun parseQuestMenuQuestTooltip(hintYaml: Any?, path: String, configKey: String): Pair<NPCQuestHint?, List<Component>> {
         val errors = ValidationErrors()
         if (hintYaml == null) return Pair(null, errors)
 
         val hintMap = asObjectMap(hintYaml) ?: run {
-            errors.add(path, "Hint must be an object, got ${describeValue(hintYaml)}")
+            errors.add(path, "${configKey.replaceFirstChar { it.uppercase() }} must be an object, got ${describeValue(hintYaml)}")
             return Pair(null, errors)
         }
         val allowedKeys = setOf("title", "body")
         val unknownKeys = hintMap.keys.filterIsInstance<String>().filterNot { it in allowedKeys }
         if (unknownKeys.isNotEmpty()) {
-            errors.add(path, "Unknown quest hint keys ${unknownKeys.joinToString(", ")}")
+            errors.add(path, "Unknown quest $configKey keys ${unknownKeys.joinToString(", ")}")
         }
 
         val title = hintMap["title"] as? String ?: run {

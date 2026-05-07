@@ -17,6 +17,7 @@ data class NPCQuest(
     val quest: String,
     val dialogue: String,
     val hint: NPCQuestHint?,
+    val completion: NPCQuestHint?,
     val items: List<NPCQuestItem>
 )
 data class NPCQuestHint(
@@ -52,13 +53,15 @@ class QuestMenu(val quests: List<NPCQuest>) : NPCMenu(MenuType.QUEST) {
         }
 
         inv.clear()
+        val isCompletable = questCompletable(player, currentQuest)
         inv.setItem(0, makeItem(npc.guiModelKey, "alt", hideTooltip))
         inv.setItem(1, makeItem(npc.questModelKey, currentQuest.dialogue, hideTooltip))
-        inv.setItem(53, makeItem("lom:npcs/questbox", if (questCompletable(player, currentQuest)) "complete" else "incomplete", hideTooltip))
-        currentQuest.hint?.let { hint ->
-            val hintItem = buildHintItem(hint)
-            inv.setItem(24, hintItem)
-            inv.setItem(25, hintItem.clone())
+        inv.setItem(53, makeItem("lom:npcs/questbox", if (isCompletable) "complete" else "incomplete", hideTooltip))
+        val tooltip = if (isCompletable) currentQuest.completion else currentQuest.hint
+        tooltip?.let {
+            val item = buildTooltipItem(it)
+            inv.setItem(24, item)
+            inv.setItem(25, item.clone())
         }
 
         val items = currentQuest.items.toMutableList()
@@ -102,14 +105,14 @@ class QuestMenu(val quests: List<NPCQuest>) : NPCMenu(MenuType.QUEST) {
         }
     }
 
-    private fun buildHintItem(hint: NPCQuestHint) = makeItem("lom:invisible").apply {
+    private fun buildTooltipItem(tooltip: NPCQuestHint) = makeItem("lom:invisible").apply {
         editMeta { meta ->
-            meta.displayName(formatHintText(hint.title))
-            meta.lore(hint.body.map(::formatHintText))
+            meta.displayName(formatTooltipText(tooltip.title))
+            meta.lore(tooltip.body.map(::formatTooltipText))
         }
     }
 
-    private fun formatHintText(input: String): Component {
+    private fun formatTooltipText(input: String): Component {
         return miniMessage.deserialize(input)
             .colorIfAbsent(NamedTextColor.WHITE)
             .decorationIfAbsent(TextDecoration.ITALIC, TextDecoration.State.FALSE)

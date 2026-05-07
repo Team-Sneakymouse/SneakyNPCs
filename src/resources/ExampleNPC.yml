@@ -23,6 +23,11 @@ rootMenu:
           items:
             - item: item-wood-spruce
               amount: 99
+          completion:
+            title: "<green>Quest Completed!"
+            body:
+              - <yellow>Reward:<white> 100 silver
+              - <white>and access to new items in the shop!
         - quest: learning_to_jack_2
           dialogue: learning_to_jack
           items:

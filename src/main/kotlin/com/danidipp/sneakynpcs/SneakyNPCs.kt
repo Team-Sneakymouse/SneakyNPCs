@@ -81,6 +81,10 @@ class SneakyNPCs : JavaPlugin() {
             logger.info("MagicSpells is already loaded. Triggering NPC config load immediately.")
             reloadNpcConfigs("onEnable")
         }
+
+        if (Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI")) {
+            Placeholders().register();
+        }
     }
     override fun onDisable() {
         logger.warning("Disabling SneakyNPCs")

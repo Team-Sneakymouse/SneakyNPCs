@@ -15,7 +15,7 @@ class Placeholders : PlaceholderExpansion() {
         // %sneakynpcs_current_quest_JackTimbers%
         if (params.startsWith("current_quest")) {
             val npcName = params.removePrefix("current_quest_")
-            if (player == null) return ""
+            if (player == null) return "Player not online"
             val completedQuests = plugin.persistenceManager.dataCache[player.uniqueId]?.getCompletedQuests(npcName)
             if (completedQuests == null) return "No data"
             val npc = plugin.configManager.configs[npcName] ?: return "NPC not found"

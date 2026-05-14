@@ -81,6 +81,28 @@ class ShopTransactionServiceTest {
     }
 
     @Test
+    fun `zero base sell value stays zero`() {
+        assertEquals(0L, service.calculateDurabilityAdjustedUnits(0L, 100L, 25L))
+    }
+
+    @Test
+    fun `zero target payment plan requires no spends or change`() {
+        val plan = service.buildPaymentPlanFromBuckets(
+            priceCurrency = lookup.getCurrency("silver")!!,
+            requiredAtomic = BigInteger.ZERO,
+            priceAtomic = BigInteger.valueOf(50L),
+            buckets = listOf(
+                ShopTransactionService.FundBucket("silver", PaymentSource.INVENTORY, 3L, BigInteger.valueOf(50L)),
+                ShopTransactionService.FundBucket("penny", PaymentSource.BANK, 100L, BigInteger.ONE),
+            )
+        )
+
+        val resolvedPlan = assertNotNull(plan)
+        assertEquals(emptyList(), resolvedPlan.spends)
+        assertEquals(0L, resolvedPlan.changeUnits)
+    }
+
+    @Test
     fun `resolve purchase quantity clamps to remaining limited stock`() {
         val playerData = emptyPlayerData()
 

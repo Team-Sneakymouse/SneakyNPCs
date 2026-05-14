@@ -671,6 +671,34 @@ internal fun buildShopStockEntryId(path: String, itemId: String): String {
     return normalizedPath.substring(0, lastSeparatorIndex + 1) + itemId
 }
 
+internal fun parseShopStoredPriceAmount(
+    amountRaw: String?,
+    path: String,
+    itemId: String,
+    pdcKeyName: String,
+): Pair<Int?, List<Component>> {
+    if (amountRaw == null) {
+        return Pair(
+            null,
+            listOf(validationDetail("$path.price.amount", "Missing price amount PDC '$pdcKeyName' on '$itemId'"))
+        )
+    }
+
+    val amount = amountRaw.toIntOrNull() ?: return Pair(
+        null,
+        listOf(validationDetail("$path.price.amount", "Invalid price amount '$amountRaw' on '$itemId' (expected integer string)"))
+    )
+
+    if (amount < 0) {
+        return Pair(
+            null,
+            listOf(validationDetail("$path.price.amount", "Must be >= 0 (got $amount)"))
+        )
+    }
+
+    return Pair(amount, emptyList())
+}
+
 internal fun parseShopItemLimitConfig(
     rawLimits: Any?,
     path: String,
@@ -1272,11 +1300,6 @@ class ConfigManager(private val plugin: SneakyNPCs) {
             errors.add("$path.items", "List is empty")
             return Pair(null, errors)
         }
-        if (itemsYaml.size > 48) {
-            errors.add("$path.items", "Shop supports up to 48 items (found ${itemsYaml.size})")
-            return Pair(null, errors)
-        }
-
         val items = mutableListOf<ShopMenuItem>()
         for ((itemIndex, itemEntry) in itemsYaml.withIndex()) {
             val itemMap = asObjectMap(itemEntry)
@@ -1404,12 +1427,14 @@ class ConfigManager(private val plugin: SneakyNPCs) {
             errors.add("$path.price.amount", "Missing price amount PDC '$msKey' on '$itemId'")
             return Pair(null, errors)
         }
-        val amount = amountRaw.toIntOrNull() ?: run {
-            errors.add("$path.price.amount", "Invalid price amount '$amountRaw' on '$itemId' (expected integer string)")
-            return Pair(null, errors)
-        }
-        if (amount <= 0) {
-            errors.add("$path.price.amount", "Must be > 0 (got $amount)")
+        val (amount, amountErrors) = parseShopStoredPriceAmount(
+            amountRaw = amountRaw,
+            path = path,
+            itemId = itemId,
+            pdcKeyName = storeAmountKey.toString().substringAfter("_"),
+        )
+        if (amountErrors.isNotEmpty() || amount == null) {
+            errors.addAll(amountErrors)
             return Pair(null, errors)
         }
 

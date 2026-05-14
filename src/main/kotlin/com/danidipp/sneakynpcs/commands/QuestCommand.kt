@@ -90,9 +90,6 @@ object QuestCommand {
                                 .forEach { builder.suggest(it) }
                             builder.buildFuture()
                         }
-                        .executes { ctx ->
-                            executeResetAllNpcQuests(ctx)
-                        }
                         .then(Commands.argument("quest", StringArgumentType.word())
                             .suggests { ctx, builder ->
                                 val npcId = try { ctx.getArgument("npc", String::class.java) } catch (e: Exception) { null }
@@ -119,6 +116,9 @@ object QuestCommand {
                                 .filter { it.startsWith(builder.remaining, ignoreCase = true) }
                                 .forEach { builder.suggest(it) }
                             builder.buildFuture()
+                        }
+                        .executes { ctx ->
+                            executeResetAllNpcQuests(ctx)
                         }
                         .then(Commands.argument("quest", StringArgumentType.word())
                             .suggests { ctx, builder ->

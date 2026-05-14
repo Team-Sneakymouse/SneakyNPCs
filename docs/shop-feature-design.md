@@ -12,7 +12,7 @@ Price metadata is read from MagicItem PDC:
 MVP includes:
 - Buy-only transactions.
 - Strict config loading from `currencies.yml` and `npc/*.yml`.
-- Shop GUI with 2 pages (max 48 items).
+- Shop GUI with unbounded pagination in 24-item pages.
 - Inventory-first, bank-second payment source order.
 - Requirement checks against MagicVariables.
 
@@ -62,8 +62,8 @@ Reserved fields for V2 at NPC root:
 
 ### Shop GUI
 - Keep existing 24-slot product layout.
-- If items > 24, page toggle appears in slot `40`.
-- Max 48 items per shop.
+- If items > 24, page toggle appears in slot `44`.
+- Shops can contain any number of configured items; pages are generated in 24-item chunks.
 - Left click buys 1.
 - Shift click buys max stack (respect item max stack size) when `buyStacks: true`.
 
@@ -82,7 +82,6 @@ Reserved fields for V2 at NPC root:
 - Failure: play `lom:fail_wrong` and send short hardcoded chat reason.
 
 ## Validation Rules
-- Shop item count > 48: config error.
 - Unknown currency id in item PDC: config error.
 - Price amount PDC not parseable int: config error.
 - Invalid exchange target/rate: currency config error.
@@ -93,7 +92,7 @@ Reserved fields for V2 at NPC root:
 - Invalid amount string fails.
 - Unknown currency id fails.
 - Invalid exchange definitions fail.
-- More than 48 shop items fail.
+- Shops with more than 48 items parse and paginate.
 
 2. Currency conversion behavior
 - Forward + auto-inverse conversions are consistent.
@@ -111,7 +110,7 @@ Reserved fields for V2 at NPC root:
 - Variable minimums gate purchases correctly.
 
 6. GUI behavior
-- Page toggle on slot 40.
+- Page toggle on slot 44.
 - Page boundaries enforced.
 - Left-click and shift-click quantity behavior.
 

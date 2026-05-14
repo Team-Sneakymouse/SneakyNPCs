@@ -56,7 +56,14 @@ class ShopTransactionService(
             ?: return PurchaseResult.Failure("This action has an invalid currency graph.")
 
         val totalAmount = price.amount.toLong()
-        if (totalAmount <= 0L) return PurchaseResult.Failure("Invalid configured price.")
+        if (totalAmount < 0L) return PurchaseResult.Failure("Invalid configured price.")
+        if (totalAmount == 0L) {
+            return PurchaseResult.Success(
+                spent = emptyList(),
+                earned = emptyList(),
+                deliveredQuantity = 0,
+            )
+        }
         val requiredAtomic = priceAtomic.multiply(BigInteger.valueOf(totalAmount))
 
         val plan = buildPaymentPlan(player, priceCurrency, requiredAtomic, priceAtomic)
@@ -135,7 +142,7 @@ class ShopTransactionService(
             ?: return PurchaseResult.Failure("This item has an invalid currency graph.")
 
         val totalAmount = shopItem.price.amount.toLong() * effectiveQuantity.toLong()
-        if (totalAmount <= 0L) return PurchaseResult.Failure("Invalid configured price.")
+        if (totalAmount < 0L) return PurchaseResult.Failure("Invalid configured price.")
         val requiredAtomic = priceAtomic.multiply(BigInteger.valueOf(totalAmount))
 
         val purchasableStack = shopItem.magicItem.itemStack.clone().apply {
@@ -143,6 +150,35 @@ class ShopTransactionService(
         }
         if (!balanceService.canFitItem(player.inventory, purchasableStack, effectiveQuantity)) {
             return PurchaseResult.Failure("Not enough inventory space.")
+        }
+
+        if (totalAmount == 0L) {
+            val leftovers = player.inventory.addItem(purchasableStack)
+            if (leftovers.isNotEmpty()) {
+                return PurchaseResult.Failure("Not enough inventory space.")
+            }
+
+            when (val stockResult = shopItemStockService.consumeForPurchase(
+                playerData = playerData,
+                npcId = npc.id,
+                stockEntryId = shopItem.stockEntryId,
+                limits = shopItem.limits,
+                requestedQuantity = effectiveQuantity,
+            )) {
+                is ShopItemStockService.ConsumeResult.Failure -> return PurchaseResult.Failure(stockResult.message)
+                is ShopItemStockService.ConsumeResult.Success -> Unit
+            }
+
+            inventoryTransactionLogger.log(
+                player = player,
+                addedItems = listOf(purchasableStack.clone()),
+            )
+
+            return PurchaseResult.Success(
+                spent = emptyList(),
+                earned = emptyList(),
+                deliveredQuantity = effectiveQuantity,
+            )
         }
 
         val plan = buildPaymentPlan(player, priceCurrency, requiredAtomic, priceAtomic)
@@ -252,8 +288,15 @@ class ShopTransactionService(
 
         val unitsPerItem = calculateSellUnitsPerItem(storedValue.amount.toLong(), offeredStack)
         val totalUnits = unitsPerItem * offeredStack.amount.toLong()
-        if (totalUnits <= 0L) {
+        if (totalUnits < 0L) {
             return SellResult.Failure("This item has an invalid sell value.")
+        }
+        if (totalUnits == 0L) {
+            return SellResult.Success(
+                currencyId = priceCurrency.id,
+                payoutAmount = 0L,
+                earned = emptyList(),
+            )
         }
 
         if (priceCurrency.variableId == null) {
@@ -652,7 +695,7 @@ class ShopTransactionService(
         val pdc = itemMeta.persistentDataContainer
         val currencyId = pdc.get(storeCurrencyKey, PersistentDataType.STRING)?.takeIf { it.isNotBlank() } ?: return null
         val amount = pdc.get(storeAmountKey, PersistentDataType.STRING)?.toIntOrNull() ?: return null
-        if (amount <= 0) return null
+        if (amount < 0) return null
         return ShopPrice(currencyId = currencyId, amount = amount)
     }
 

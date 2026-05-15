@@ -67,6 +67,8 @@ internal fun unwrapAsyncThrowable(throwable: Throwable?): Throwable? {
     return current
 }
 
+internal const val maxQuestItems = 10
+
 private fun validationTitle(subject: String, location: String? = null): Component {
     val parts = mutableListOf<Component>(
         Component.text("[Config] ", NamedTextColor.DARK_GRAY),
@@ -129,6 +131,11 @@ internal fun parseBankDisplayConfig(
         }
     }
     return Pair(bankDisplay, errors.toList())
+}
+
+internal fun validateQuestItemCount(items: List<*>, path: String): List<Component> {
+    if (items.size <= maxQuestItems) return emptyList()
+    return listOf(validationDetail(path, "May contain at most $maxQuestItems items"))
 }
 
 internal fun parseExternalMenuConfig(
@@ -1188,6 +1195,11 @@ class ConfigManager(private val plugin: SneakyNPCs) {
 
         val itemsYaml = questYaml["items"] as? List<*> ?: run {
             errors.add("$path.items", "Missing or invalid field")
+            return Pair(null, errors)
+        }
+        val itemCountErrors = validateQuestItemCount(itemsYaml, "$path.items")
+        if (itemCountErrors.isNotEmpty()) {
+            errors.addAll(itemCountErrors)
             return Pair(null, errors)
         }
 

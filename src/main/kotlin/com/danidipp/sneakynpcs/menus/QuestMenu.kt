@@ -74,6 +74,8 @@ internal fun applyQuestVariableOperation(
     NPCQuestVariableOperation.SUBTRACT -> current - amount
 }
 
+internal val questItemDisplaySlots = (4..8) + (13..17)
+
 class QuestMenu(val quests: List<NPCQuest>) : NPCMenu(MenuType.QUEST) {
     val plugin = SneakyNPCs.getInstance()
     private val miniMessage = MiniMessage.miniMessage()
@@ -111,15 +113,7 @@ class QuestMenu(val quests: List<NPCQuest>) : NPCMenu(MenuType.QUEST) {
             inv.setItem(25, item.clone())
         }
 
-        val items = currentQuest.items.toMutableList()
-        for (slot in 5 until 9) {
-            if (items.isEmpty()) break
-            val item = items.removeAt(0)
-            inv.setItem(slot, item.magicItem.itemStack.clone().apply { amount = item.amount })
-        }
-        for (slot in 14 until 18) {
-            if (items.isEmpty()) break
-            val item = items.removeAt(0)
+        for ((item, slot) in currentQuest.items.zip(questItemDisplaySlots)) {
             inv.setItem(slot, item.magicItem.itemStack.clone().apply { amount = item.amount })
         }
 

@@ -16,3 +16,6 @@ dependencies:
     SneakyMannequins:
       load: BEFORE
       required: false
+    PlaceholderAPI:
+      load: BEFORE
+      required: false

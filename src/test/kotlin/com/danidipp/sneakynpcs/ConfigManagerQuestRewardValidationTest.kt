@@ -1,5 +1,6 @@
 package com.danidipp.sneakynpcs
 
+import com.danidipp.sneakynpcs.menus.NPCQuestCommandReward
 import com.danidipp.sneakynpcs.menus.NPCQuestItemReward
 import com.danidipp.sneakynpcs.menus.NPCQuestReputationReward
 import com.danidipp.sneakynpcs.menus.NPCQuestVariableOperation
@@ -64,6 +65,30 @@ class ConfigManagerQuestRewardValidationTest {
     }
 
     @Test
+    fun `quest rewards parse command reward as player by default`() {
+        val (rewards, errors) = parseRewards(
+            listOf(mapOf("command" to "say hello")),
+        )
+
+        assertTrue(errors.isEmpty())
+        val reward = assertIs<NPCQuestCommandReward>(rewards.single())
+        assertEquals("say hello", reward.command)
+        assertEquals(false, reward.asConsole)
+    }
+
+    @Test
+    fun `quest rewards parse command reward as console`() {
+        val (rewards, errors) = parseRewards(
+            listOf(mapOf("command" to "lp user %player_name% permission set sneakymail.access true", "asConsole" to true)),
+        )
+
+        assertTrue(errors.isEmpty())
+        val reward = assertIs<NPCQuestCommandReward>(rewards.single())
+        assertEquals("lp user %player_name% permission set sneakymail.access true", reward.command)
+        assertEquals(true, reward.asConsole)
+    }
+
+    @Test
     fun `quest rewards reject omitted reward`() {
         val (rewards, errors) = parseRewards(null)
 
@@ -104,7 +129,7 @@ class ConfigManagerQuestRewardValidationTest {
 
         assertNull(reward)
         assertEquals(
-            listOf(" - rootMenu.quests[0].reward[0]: Reward must define exactly one of 'item', 'variable', or 'reputation'"),
+            listOf(" - rootMenu.quests[0].reward[0]: Reward must define exactly one of 'item', 'variable', 'reputation', or 'command'"),
             errors.map(serializer::serialize),
         )
     }
@@ -115,7 +140,7 @@ class ConfigManagerQuestRewardValidationTest {
 
         assertNull(reward)
         assertEquals(
-            listOf(" - rootMenu.quests[0].reward[0]: Reward must define exactly one of 'item', 'variable', or 'reputation'"),
+            listOf(" - rootMenu.quests[0].reward[0]: Reward must define exactly one of 'item', 'variable', 'reputation', or 'command'"),
             errors.map(serializer::serialize),
         )
     }
@@ -126,7 +151,40 @@ class ConfigManagerQuestRewardValidationTest {
 
         assertNull(reward)
         assertEquals(
-            listOf(" - rootMenu.quests[0].reward[0]: Reward must define exactly one of 'item', 'variable', or 'reputation'"),
+            listOf(" - rootMenu.quests[0].reward[0]: Reward must define exactly one of 'item', 'variable', 'reputation', or 'command'"),
+            errors.map(serializer::serialize),
+        )
+    }
+
+    @Test
+    fun `quest rewards reject entries with item and command`() {
+        val (reward, errors) = parseReward(mapOf("item" to "money-silver", "amount" to 1, "command" to "say hello"))
+
+        assertNull(reward)
+        assertEquals(
+            listOf(" - rootMenu.quests[0].reward[0]: Reward must define exactly one of 'item', 'variable', 'reputation', or 'command'"),
+            errors.map(serializer::serialize),
+        )
+    }
+
+    @Test
+    fun `quest rewards reject entries with variable and command`() {
+        val (reward, errors) = parseReward(mapOf("variable" to "shop_lumberjack_unlocked", "operation" to "set", "amount" to 1, "command" to "say hello"))
+
+        assertNull(reward)
+        assertEquals(
+            listOf(" - rootMenu.quests[0].reward[0]: Reward must define exactly one of 'item', 'variable', 'reputation', or 'command'"),
+            errors.map(serializer::serialize),
+        )
+    }
+
+    @Test
+    fun `quest rewards reject entries with reputation and command`() {
+        val (reward, errors) = parseReward(mapOf("reputation" to 1.0, "command" to "say hello"))
+
+        assertNull(reward)
+        assertEquals(
+            listOf(" - rootMenu.quests[0].reward[0]: Reward must define exactly one of 'item', 'variable', 'reputation', or 'command'"),
             errors.map(serializer::serialize),
         )
     }
@@ -137,7 +195,7 @@ class ConfigManagerQuestRewardValidationTest {
 
         assertNull(reward)
         assertEquals(
-            listOf(" - rootMenu.quests[0].reward[0]: Reward must define exactly one of 'item', 'variable', or 'reputation'"),
+            listOf(" - rootMenu.quests[0].reward[0]: Reward must define exactly one of 'item', 'variable', 'reputation', or 'command'"),
             errors.map(serializer::serialize),
         )
     }
@@ -256,6 +314,50 @@ class ConfigManagerQuestRewardValidationTest {
         assertNull(reward)
         assertEquals(
             listOf(" - rootMenu.quests[0].reward[0].reputation: Missing or invalid field"),
+            errors.map(serializer::serialize),
+        )
+    }
+
+    @Test
+    fun `quest rewards reject blank command`() {
+        val (reward, errors) = parseReward(mapOf("command" to ""))
+
+        assertNull(reward)
+        assertEquals(
+            listOf(" - rootMenu.quests[0].reward[0].command: Missing or invalid field"),
+            errors.map(serializer::serialize),
+        )
+    }
+
+    @Test
+    fun `quest rewards reject non string command`() {
+        val (reward, errors) = parseReward(mapOf("command" to 7))
+
+        assertNull(reward)
+        assertEquals(
+            listOf(" - rootMenu.quests[0].reward[0].command: Missing or invalid field"),
+            errors.map(serializer::serialize),
+        )
+    }
+
+    @Test
+    fun `quest rewards reject unknown command reward keys`() {
+        val (reward, errors) = parseReward(mapOf("command" to "say hello", "extra" to true))
+
+        assertNull(reward)
+        assertEquals(
+            listOf(" - rootMenu.quests[0].reward[0]: Unknown quest reward command keys extra"),
+            errors.map(serializer::serialize),
+        )
+    }
+
+    @Test
+    fun `quest rewards reject non boolean asConsole`() {
+        val (reward, errors) = parseReward(mapOf("command" to "say hello", "asConsole" to "true"))
+
+        assertNull(reward)
+        assertEquals(
+            listOf(" - rootMenu.quests[0].reward[0].asConsole: Must be a boolean"),
             errors.map(serializer::serialize),
         )
     }

@@ -34,6 +34,8 @@ rootMenu:
             - variable: shop_lumberjack_unlocked
               operation: set
               amount: 1
+            - command: "lp user %player_name% permission set sneakymail.access true"
+              asConsole: true
         - quest: learning_to_jack_2
           dialogue: learning_to_jack
           items:

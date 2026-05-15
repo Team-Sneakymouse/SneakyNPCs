@@ -6,12 +6,15 @@ import com.danidipp.sneakynpcs.PlayerData
 import com.danidipp.sneakynpcs.SneakyNPCs
 import com.nisovin.magicspells.MagicSpells
 import com.nisovin.magicspells.util.magicitems.MagicItem
+import me.clip.placeholderapi.PlaceholderAPI
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.NamedTextColor
 import net.kyori.adventure.text.format.TextDecoration
 import net.kyori.adventure.text.minimessage.MiniMessage
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
+import org.bukkit.Bukkit
 import org.bukkit.NamespacedKey
+import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
 import org.bukkit.event.inventory.InventoryClickEvent
 import org.bukkit.inventory.ItemStack
@@ -51,6 +54,10 @@ data class NPCQuestVariableReward(
 data class NPCQuestReputationReward(
     val amount: Double,
 ) : NPCQuestReward
+data class NPCQuestCommandReward(
+    val command: String,
+    val asConsole: Boolean,
+) : NPCQuestReward
 enum class NPCQuestVariableOperation {
     SET,
     ADD,
@@ -71,6 +78,7 @@ class QuestMenu(val quests: List<NPCQuest>) : NPCMenu(MenuType.QUEST) {
     val plugin = SneakyNPCs.getInstance()
     private val miniMessage = MiniMessage.miniMessage()
     private val magicItemKey = NamespacedKey("magicspells", "magicitem")
+    private val placeholderPattern = Regex("%[^\\s]+%")
 
     override fun open(gui: NPCGui, player: Player, playerData: PlayerData?) {
         val resolvedData = playerData ?: plugin.persistenceManager.dataCache[player.uniqueId]
@@ -96,7 +104,7 @@ class QuestMenu(val quests: List<NPCQuest>) : NPCMenu(MenuType.QUEST) {
         inv.setItem(0, makeItem(npc.guiModelKey, "alt", hideTooltip))
         inv.setItem(1, makeItem(npc.questModelKey, currentQuest.dialogue, hideTooltip))
         inv.setItem(53, makeItem("lom:npcs/questbox", if (isCompletable) "complete" else "incomplete", hideTooltip))
-        val tooltip = if (isCompletable) currentQuest.completion else currentQuest.hint
+        val tooltip = if (isCompletable && currentQuest.completion != null) currentQuest.completion else currentQuest.hint
         tooltip?.let {
             val item = buildTooltipItem(it)
             inv.setItem(24, item)
@@ -237,7 +245,45 @@ class QuestMenu(val quests: List<NPCQuest>) : NPCMenu(MenuType.QUEST) {
                 is NPCQuestItemReward -> deliverItemReward(player, reward)
                 is NPCQuestReputationReward -> playerData.addReputation(npcId, reward.amount)
                 is NPCQuestVariableReward -> applyVariableReward(player, reward)
+                is NPCQuestCommandReward -> executeCommandReward(player, reward)
             }
+        }
+    }
+
+    private fun executeCommandReward(player: Player, reward: NPCQuestCommandReward) {
+        val placeholderApiEnabled = plugin.server.pluginManager.isPluginEnabled("PlaceholderAPI")
+        val command = if (placeholderApiEnabled) {
+            PlaceholderAPI.setPlaceholders(player, reward.command)
+        } else {
+            if (placeholderPattern.containsMatchIn(reward.command)) {
+                plugin.logger.warning(
+                    "PlaceholderAPI is unavailable while executing quest reward command '${reward.command}' " +
+                        "for player '${player.name}'"
+                )
+                player.sendMessage(
+                    plugin.prefix.append(
+                        Component.text(
+                            "Quest reward command placeholders could not be parsed because PlaceholderAPI is unavailable. Please tell Dani.",
+                            NamedTextColor.RED,
+                        )
+                    )
+                )
+            }
+            reward.command
+        }
+
+        val sender: CommandSender = if (reward.asConsole) Bukkit.getConsoleSender() else player
+        val senderLabel = if (reward.asConsole) "console" else "player"
+        val dispatched = Bukkit.dispatchCommand(sender, command)
+        if (!dispatched) {
+            plugin.logger.warning(
+                "Failed to dispatch quest reward command '$command' as $senderLabel for player '${player.name}'"
+            )
+            player.sendMessage(
+                plugin.prefix.append(
+                    Component.text("Failed to run a quest reward command. Please tell Dani.", NamedTextColor.RED)
+                )
+            )
         }
     }
 

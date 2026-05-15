@@ -2,6 +2,7 @@ package com.danidipp.sneakynpcs
 
 import com.danidipp.sneakynpcs.menus.CustomMenu
 import com.danidipp.sneakynpcs.menus.ExternalMenu
+import com.danidipp.sneakynpcs.menus.NPCQuestCommandReward
 import com.danidipp.sneakynpcs.menus.NPCMenu
 import com.danidipp.sneakynpcs.menus.NPCQuest
 import com.danidipp.sneakynpcs.menus.NPCQuestHint
@@ -535,9 +536,10 @@ internal fun parseQuestMenuQuestRewardConfig(
     val hasItem = rewardYaml["item"] != null
     val hasVariableKey = rewardYaml["variable"] != null
     val hasReputation = rewardYaml["reputation"] != null
+    val hasCommand = rewardYaml["command"] != null
 
-    if (listOf(hasItem, hasVariableKey, hasReputation).count { it } != 1) {
-        errors.add(path, "Reward must define exactly one of 'item', 'variable', or 'reputation'")
+    if (listOf(hasItem, hasVariableKey, hasReputation, hasCommand).count { it } != 1) {
+        errors.add(path, "Reward must define exactly one of 'item', 'variable', 'reputation', or 'command'")
         return Pair(null, errors.toList())
     }
 
@@ -545,8 +547,10 @@ internal fun parseQuestMenuQuestRewardConfig(
         parseQuestMenuQuestItemRewardConfig(rewardYaml, path, itemLookup)
     } else if (hasVariableKey) {
         parseQuestMenuQuestVariableRewardConfig(rewardYaml, path, hasVariable)
-    } else {
+    } else if (hasReputation) {
         parseQuestMenuQuestReputationRewardConfig(rewardYaml, path)
+    } else {
+        parseQuestMenuQuestCommandRewardConfig(rewardYaml, path)
     }
 }
 
@@ -651,6 +655,37 @@ private fun parseQuestMenuQuestReputationRewardConfig(
         return Pair(null, errors.toList())
     }
     return Pair(NPCQuestReputationReward(amount = amount), errors.toList())
+}
+
+private fun parseQuestMenuQuestCommandRewardConfig(
+    rewardYaml: Map<*, *>,
+    path: String,
+): Pair<NPCQuestReward?, List<Component>> {
+    val errors = ValidationErrors()
+    val allowedKeys = setOf("command", "asConsole")
+    val unknownKeys = rewardYaml.keys.filterIsInstance<String>().filterNot { it in allowedKeys }
+    if (unknownKeys.isNotEmpty()) {
+        errors.add(path, "Unknown quest reward command keys ${unknownKeys.joinToString(", ")}")
+    }
+
+    val command = rewardYaml["command"] as? String
+    if (command.isNullOrBlank()) {
+        errors.add("$path.command", "Missing or invalid field")
+    }
+
+    val asConsole = when (val rawAsConsole = rewardYaml["asConsole"]) {
+        null -> false
+        is Boolean -> rawAsConsole
+        else -> {
+            errors.add("$path.asConsole", "Must be a boolean")
+            false
+        }
+    }
+
+    if (errors.isNotEmpty() || command.isNullOrBlank()) {
+        return Pair(null, errors.toList())
+    }
+    return Pair(NPCQuestCommandReward(command = command, asConsole = asConsole), errors.toList())
 }
 
 internal fun validateShopItemIdForStockPersistence(itemId: String): String? {

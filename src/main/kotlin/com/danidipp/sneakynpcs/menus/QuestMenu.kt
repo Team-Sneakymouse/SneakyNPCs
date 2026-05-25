@@ -75,6 +75,7 @@ internal fun applyQuestVariableOperation(
 }
 
 internal val questItemDisplaySlots = (4..8) + (13..17)
+internal val questConfirmButtonSlots = (23..25)
 
 class QuestMenu(val quests: List<NPCQuest>) : NPCMenu(MenuType.QUEST) {
     val plugin = SneakyNPCs.getInstance()
@@ -109,8 +110,8 @@ class QuestMenu(val quests: List<NPCQuest>) : NPCMenu(MenuType.QUEST) {
         val tooltip = if (isCompletable && currentQuest.completion != null) currentQuest.completion else currentQuest.hint
         tooltip?.let {
             val item = buildTooltipItem(it)
-            inv.setItem(24, item)
-            inv.setItem(25, item.clone())
+            for (slot in questConfirmButtonSlots)
+                inv.setItem(slot, item.clone())
         }
 
         for ((item, slot) in currentQuest.items.zip(questItemDisplaySlots)) {
@@ -139,7 +140,7 @@ class QuestMenu(val quests: List<NPCQuest>) : NPCMenu(MenuType.QUEST) {
             return
         }
 
-        if (event.slot in 23..26) {
+        if (event.slot in questConfirmButtonSlots) {
             if (!questCompletable(player, currentQuest)) return
             completeQuest(player, playerData, gui.npc.id, currentQuest)
             gui.close()

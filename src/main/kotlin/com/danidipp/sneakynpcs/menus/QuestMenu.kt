@@ -109,7 +109,7 @@ class QuestMenu(val quests: List<NPCQuest>) : NPCMenu(MenuType.QUEST) {
         inv.setItem(53, makeItem("lom:npcs/questbox", if (isCompletable) "complete" else "incomplete", hideTooltip))
         val tooltip = if (isCompletable && currentQuest.completion != null) currentQuest.completion else currentQuest.hint
         tooltip?.let {
-            val item = buildTooltipItem(it)
+            val item = buildTooltipItem(player, it)
             for (slot in questConfirmButtonSlots)
                 inv.setItem(slot, item.clone())
         }
@@ -147,17 +147,25 @@ class QuestMenu(val quests: List<NPCQuest>) : NPCMenu(MenuType.QUEST) {
         }
     }
 
-    private fun buildTooltipItem(tooltip: NPCQuestHint) = makeItem("lom:invisible").apply {
+    private fun buildTooltipItem(player: Player, tooltip: NPCQuestHint) = makeItem("lom:invisible").apply {
         editMeta { meta ->
-            meta.displayName(formatTooltipText(tooltip.title))
-            meta.lore(tooltip.body.map(::formatTooltipText))
+            meta.displayName(formatTooltipText(player, tooltip.title))
+            meta.lore(tooltip.body.map { formatTooltipText(player, it) })
         }
     }
 
-    private fun formatTooltipText(input: String): Component {
-        return miniMessage.deserialize(input)
+    private fun formatTooltipText(player: Player, input: String): Component {
+        return miniMessage.deserialize(parsePlaceholders(player, input))
             .colorIfAbsent(NamedTextColor.WHITE)
             .decorationIfAbsent(TextDecoration.ITALIC, TextDecoration.State.FALSE)
+    }
+
+    private fun parsePlaceholders(player: Player, input: String): String {
+        return if (plugin.server.pluginManager.isPluginEnabled("PlaceholderAPI")) {
+            PlaceholderAPI.setPlaceholders(player, input)
+        } else {
+            input
+        }
     }
 
     fun questCompletable(player: Player, quest: NPCQuest): Boolean {

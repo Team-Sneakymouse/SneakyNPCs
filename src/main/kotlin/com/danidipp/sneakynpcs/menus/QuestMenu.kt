@@ -239,7 +239,18 @@ class QuestMenu(val quests: List<NPCQuest>) : NPCMenu(MenuType.QUEST) {
         )
 
         playerData.completeQuest(quest.quest)
+        executeQuestCompleteSpell(player)
         player.sendMessage(plugin.prefix.append(Component.text("Quest completed!", NamedTextColor.GREEN)))
+    }
+
+    private fun executeQuestCompleteSpell(player: Player) {
+        val command = "ms cast as ${player.name} questcomplete"
+        val dispatched = Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command)
+        if (!dispatched) {
+            plugin.logger.warning(
+                "Failed to dispatch quest completion command '$command' for player '${player.name}'"
+            )
+        }
     }
 
     private fun applyQuestRewards(player: Player, playerData: PlayerData, rewards: List<NPCQuestReward>, npcId: String) {

@@ -16,9 +16,9 @@ class Placeholders : PlaceholderExpansion() {
         if (params.startsWith("current_questid_")) {
             val npcName = params.removePrefix("current_questid_")
             if (player == null) return "Player not online"
-            val completedQuests = plugin.persistenceManager.dataCache[player.uniqueId]?.getCompletedQuests(npcName)
-            if (completedQuests == null) return "No data"
-            val npc = plugin.configManager.configs[npcName] ?: return "NPC not found"
+            val npc = resolveNpc(npcName) ?: return "NPC not found"
+            val completedQuests = plugin.persistenceManager
+                .dataCache[player.uniqueId]?.getCompletedQuests(npc.id) ?: return "No data"
             val questMenu = npc.allMenus.firstOrNull { it is QuestMenu } as? QuestMenu ?: return "No quest menu"
             val questIndex = questMenu.quests.indexOfFirst { !completedQuests.contains(it.quest) }
             if (questIndex == -1) return ""
@@ -29,14 +29,19 @@ class Placeholders : PlaceholderExpansion() {
         if (params.startsWith("current_quest_")) {
             val npcName = params.removePrefix("current_quest_")
             if (player == null) return "Player not online"
-            val completedQuests = plugin.persistenceManager.dataCache[player.uniqueId]?.getCompletedQuests(npcName)
-            if (completedQuests == null) return "No data"
-            val npc = plugin.configManager.configs[npcName] ?: return "NPC not found"
+            val npc = resolveNpc(npcName) ?: return "NPC not found"
+            val completedQuests = plugin.persistenceManager
+                .dataCache[player.uniqueId]?.getCompletedQuests(npc.id) ?: return "No data"
             val questMenu = npc.allMenus.firstOrNull { it is QuestMenu } as? QuestMenu ?: return "No quest menu"
             val quest = questMenu.quests.firstOrNull { !completedQuests.contains(it.quest) } ?: return "All quests completed"
-            return quest.quest.removePrefix("$npcName-")
+            return quest.quest.removePrefix("${npc.id}-")
         }
 
         return null
+    }
+
+    private fun resolveNpc(npcName: String): NPC? {
+        return plugin.configManager.configs[npcName]
+            ?: plugin.configManager.configs.entries.firstOrNull { (id, _) -> id.equals(npcName, ignoreCase = true) }?.value
     }
 }

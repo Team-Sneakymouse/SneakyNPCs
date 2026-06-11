@@ -21,6 +21,7 @@ import org.bukkit.event.inventory.ClickType
 import org.bukkit.event.inventory.InventoryClickEvent
 import org.bukkit.event.inventory.InventoryDragEvent
 import org.bukkit.inventory.ItemStack
+import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
@@ -33,6 +34,8 @@ data class ShopMenuItem(
     val price: ShopPrice,
     val limits: ShopItemLimitConfig?,
 )
+
+internal fun formatBankDisplayAmount(amount: Long): String = "%,d".format(Locale.US, amount)
 
 class ShopMenu(
     private val items: List<ShopMenuItem>,
@@ -289,7 +292,7 @@ class ShopMenu(
                 .decoration(TextDecoration.ITALIC, false)
                 .append(Component.text(ShopMessageFormatter.formatCurrencyId(currency.id), NamedTextColor.GOLD))
                 .append(Component.text(": ", NamedTextColor.DARK_GRAY))
-                .append(Component.text(amount.toString(), NamedTextColor.YELLOW))
+                .append(Component.text(formatBankDisplayAmount(amount), NamedTextColor.YELLOW))
                 .build()
         }
 

@@ -37,6 +37,8 @@ import org.bukkit.configuration.ConfigurationSection
 import org.bukkit.configuration.file.YamlConfiguration
 import org.bukkit.persistence.PersistentDataType
 import java.io.File
+import java.time.LocalDate
+import java.time.ZoneOffset
 import java.util.concurrent.CompletionException
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.CompletableFuture
@@ -497,6 +499,8 @@ private fun parseDoubleValue(raw: Any?): Double? = when (raw) {
     else -> null
 }
 
+internal fun currentShopDate(): LocalDate = LocalDate.now(ZoneOffset.ofHours(-7))
+
 internal fun parseQuestMenuQuestRewardsConfig(
     rawRewards: Any?,
     path: String,
@@ -703,15 +707,21 @@ internal fun validateShopItemIdForStockPersistence(itemId: String): String? {
 }
 
 internal fun buildShopStockEntryId(path: String, itemId: String): String {
-    val normalizedPath = path
-        .replace(".", "/")
-        .replace(Regex("\\[(\\d+)]"), "/$1")
+    val normalizedPath = normalizeConfigPath(path)
     val lastSeparatorIndex = normalizedPath.lastIndexOf('/')
     if (lastSeparatorIndex == -1) {
         return itemId
     }
     return normalizedPath.substring(0, lastSeparatorIndex + 1) + itemId
 }
+
+internal fun buildShopOfferId(npcId: String, shopMenuPath: String, itemId: String): String {
+    return "$npcId:${normalizeConfigPath(shopMenuPath)}:$itemId"
+}
+
+private fun normalizeConfigPath(path: String): String = path
+    .replace(".", "/")
+    .replace(Regex("\\[(\\d+)]"), "/$1")
 
 internal fun parseShopStoredPriceAmount(
     amountRaw: String?,
@@ -739,6 +749,136 @@ internal fun parseShopStoredPriceAmount(
     }
 
     return Pair(amount, emptyList())
+}
+
+internal fun parseShopOfferAvailabilityConfig(
+    rawAvailability: Any?,
+    path: String,
+): Pair<ShopOfferAvailabilityConfig?, List<Component>> {
+    val errors = ValidationErrors()
+    if (rawAvailability == null) return Pair(null, emptyList())
+
+    val availabilityYaml = when (rawAvailability) {
+        is Map<*, *> -> rawAvailability
+        is ConfigurationSection -> rawAvailability.getValues(false)
+        else -> null
+    } ?: run {
+        errors.add(path, "Missing or invalid section")
+        return Pair(null, errors.toList())
+    }
+
+    val allowedKeys = setOf("weekdays", "daysOfMonth", "everyNthDayOfYear", "randomGroup", "chance")
+    val unknownKeys = availabilityYaml.keys.filterIsInstance<String>().filterNot { it in allowedKeys }
+    if (unknownKeys.isNotEmpty()) {
+        errors.add(path, "Unknown availability keys ${unknownKeys.joinToString(", ")}")
+    }
+
+    val weekdays = mutableSetOf<ShopWeekday>()
+    when (val rawWeekdays = availabilityYaml["weekdays"]) {
+        null -> Unit
+        is List<*> -> {
+            if (rawWeekdays.isEmpty()) {
+                errors.add("$path.weekdays", "List is empty")
+            }
+            for ((index, entry) in rawWeekdays.withIndex()) {
+                val weekday = when (entry) {
+                    is String -> parseShopWeekday(entry)
+                    else -> null
+                }
+                if (weekday == null) {
+                    errors.add("$path.weekdays[$index]", "Invalid weekday '${entry ?: "null"}'")
+                    continue
+                }
+                if (!weekdays.add(weekday)) {
+                    errors.add("$path.weekdays[$index]", "Duplicate weekday '${entry}'")
+                }
+            }
+        }
+        else -> errors.add("$path.weekdays", "Must be a list")
+    }
+
+    val daysOfMonth = mutableSetOf<Int>()
+    when (val rawDaysOfMonth = availabilityYaml["daysOfMonth"]) {
+        null -> Unit
+        is List<*> -> {
+            if (rawDaysOfMonth.isEmpty()) {
+                errors.add("$path.daysOfMonth", "List is empty")
+            }
+            for ((index, entry) in rawDaysOfMonth.withIndex()) {
+                val day = parseIntValue(entry)
+                if (day == null) {
+                    errors.add("$path.daysOfMonth[$index]", "Missing or invalid field")
+                    continue
+                }
+                if (day !in 1..31) {
+                    errors.add("$path.daysOfMonth[$index]", "Must be between 1 and 31")
+                    continue
+                }
+                if (!daysOfMonth.add(day)) {
+                    errors.add("$path.daysOfMonth[$index]", "Duplicate day '$day'")
+                }
+            }
+        }
+        else -> errors.add("$path.daysOfMonth", "Must be a list")
+    }
+
+    val everyNthDayOfYear = when (val rawEveryNthDayOfYear = availabilityYaml["everyNthDayOfYear"]) {
+        null -> null
+        else -> parseIntValue(rawEveryNthDayOfYear).also { value ->
+            if (value == null) {
+                errors.add("$path.everyNthDayOfYear", "Missing or invalid field")
+            } else if (value < 1) {
+                errors.add("$path.everyNthDayOfYear", "Must be >= 1")
+            }
+        }
+    }
+
+    val randomGroup = when (val rawRandomGroup = availabilityYaml["randomGroup"]) {
+        null -> null
+        is String -> rawRandomGroup.takeIf { it.isNotBlank() } ?: run {
+            errors.add("$path.randomGroup", "Cannot be blank")
+            null
+        }
+        else -> {
+            errors.add("$path.randomGroup", "Must be a string")
+            null
+        }
+    }
+
+    val chance = when (val rawChance = availabilityYaml["chance"]) {
+        null -> null
+        else -> parseDoubleValue(rawChance).also { value ->
+            if (value == null) {
+                errors.add("$path.chance", "Missing or invalid field")
+            } else if (!value.isFinite() || value < 0.0 || value > 1.0) {
+                errors.add("$path.chance", "Must be between 0.0 and 1.0")
+            }
+        }
+    }
+
+    if (errors.isNotEmpty()) return Pair(null, errors.toList())
+
+    return Pair(
+        ShopOfferAvailabilityConfig(
+            weekdays = weekdays,
+            daysOfMonth = daysOfMonth,
+            everyNthDayOfYear = everyNthDayOfYear,
+            randomGroup = randomGroup,
+            chance = chance,
+        ),
+        emptyList()
+    )
+}
+
+private fun parseShopWeekday(raw: String): ShopWeekday? = when (raw.lowercase()) {
+    "monday" -> ShopWeekday.MONDAY
+    "tuesday" -> ShopWeekday.TUESDAY
+    "wednesday" -> ShopWeekday.WEDNESDAY
+    "thursday" -> ShopWeekday.THURSDAY
+    "friday" -> ShopWeekday.FRIDAY
+    "saturday" -> ShopWeekday.SATURDAY
+    "sunday" -> ShopWeekday.SUNDAY
+    else -> null
 }
 
 internal fun parseShopItemLimitConfig(
@@ -819,8 +959,16 @@ private class ValidationErrors(
     fun isNotEmpty(): Boolean = entries.isNotEmpty()
 }
 
+internal data class ParsedShopMenuItem(
+    val menuItem: ShopMenuItem,
+    val offerId: String,
+    val availability: ShopOfferAvailabilityConfig?,
+)
+
 class ConfigManager(private val plugin: SneakyNPCs) {
     val configs: MutableMap<String, NPC> = mutableMapOf()
+    var latestAvailabilityReport: ShopOfferAvailabilityReport = ShopOfferAvailabilityReport(currentShopDate())
+        private set
 
     private val storeCurrencyKey = NamespacedKey(MagicSpells.getInstance(), "magicspellpermanentdata_store_value_currency")
     private val storeAmountKey = NamespacedKey(MagicSpells.getInstance(), "magicspellpermanentdata_store_value_amount")
@@ -829,6 +977,9 @@ class ConfigManager(private val plugin: SneakyNPCs) {
         configs.clear()
         return CompletableFuture.supplyAsync {
             plugin.logger.info("Loading currencies and NPC configs...")
+            val shopDate = currentShopDate()
+            val availabilityReport = ShopOfferAvailabilityReportAccumulator(shopDate)
+            latestAvailabilityReport = availabilityReport.toReport()
 
             ensureDataFolders()
             val currenciesFile = ensureResourceConfig("currencies.yml", plugin.dataFolder)
@@ -869,7 +1020,8 @@ class ConfigManager(private val plugin: SneakyNPCs) {
                 try {
                     val npcYaml = YamlConfiguration.loadConfiguration(file)
                     val npcId = file.nameWithoutExtension
-                    val (config, errors) = parseNPC(npcId, npcYaml)
+                    val npcAvailabilityReport = ShopOfferAvailabilityReportAccumulator(shopDate)
+                    val (config, errors) = parseNPC(npcId, npcYaml, shopDate, npcAvailabilityReport)
                     if (errors.isNotEmpty()) {
                         val errorInfo = ConfigErrorInfo(
                             sourceId = npcId,
@@ -881,6 +1033,7 @@ class ConfigManager(private val plugin: SneakyNPCs) {
                         continue
                     }
                     loadedConfigs[npcId] = config
+                    availabilityReport.merge(npcAvailabilityReport)
                 } catch (e: Exception) {
                     val errorInfo = ConfigErrorInfo(
                         sourceId = file.nameWithoutExtension,
@@ -896,7 +1049,24 @@ class ConfigManager(private val plugin: SneakyNPCs) {
             plugin.logger.info("Config loading complete: ${loadedConfigs.size} successful, ${allErrors.size} errors")
             configs.clear()
             configs.putAll(loadedConfigs)
+            latestAvailabilityReport = availabilityReport.toReport()
+            logAvailabilityReport(latestAvailabilityReport)
             Pair(loadedConfigs, allErrors)
+        }
+    }
+
+    private fun logAvailabilityReport(report: ShopOfferAvailabilityReport) {
+        plugin.logger.info(
+            "Shop offer availability for ${report.shopDate}: " +
+                "${report.visibleOfferIds.size} visible, " +
+                "${report.hiddenOfferIds.size} hidden, " +
+                "${report.randomGroupCount} random groups"
+        )
+        for (selection in report.randomGroupSelections) {
+            plugin.logger.info(
+                "Shop offer random group for ${report.shopDate}: " +
+                    "${selection.groupId} -> ${selection.selectedItemId}"
+            )
         }
     }
 
@@ -933,7 +1103,12 @@ class ConfigManager(private val plugin: SneakyNPCs) {
         return outFile
     }
 
-    fun parseNPC(npcId: String, npcYaml: YamlConfiguration): Pair<NPC, List<Component>> {
+    fun parseNPC(
+        npcId: String,
+        npcYaml: YamlConfiguration,
+        shopDate: LocalDate = currentShopDate(),
+        availabilityReport: ShopOfferAvailabilityReportAccumulator = ShopOfferAvailabilityReportAccumulator(shopDate),
+    ): Pair<NPC, List<Component>> {
         val errors = ValidationErrors()
 
         val style = npcYaml.getString("style")?.trim().orEmpty()
@@ -949,7 +1124,7 @@ class ConfigManager(private val plugin: SneakyNPCs) {
         val rootMenuYaml = npcYaml.get("rootMenu")
         val rootMenuMap = asObjectMap(rootMenuYaml)
         val (rootMenu, menuErrors) = if (rootMenuMap != null) {
-            parseMenuNode(rootMenuMap, npcId, "rootMenu")
+            parseMenuNode(rootMenuMap, npcId, "rootMenu", shopDate, availabilityReport)
         } else {
             Pair(
                 null,
@@ -1049,7 +1224,13 @@ class ConfigManager(private val plugin: SneakyNPCs) {
 
     private fun describeValue(value: Any?): String = describeConfigValue(value)
 
-    fun parseMenuNode(menuYaml: Map<*, *>, npcId: String, path: String): Pair<NPCMenu?, List<Component>> {
+    fun parseMenuNode(
+        menuYaml: Map<*, *>,
+        npcId: String,
+        path: String,
+        shopDate: LocalDate = currentShopDate(),
+        availabilityReport: ShopOfferAvailabilityReportAccumulator = ShopOfferAvailabilityReportAccumulator(shopDate),
+    ): Pair<NPCMenu?, List<Component>> {
         val rawType = menuYaml["type"]
         val type = rawType as? String ?: return Pair(
             null,
@@ -1070,9 +1251,9 @@ class ConfigManager(private val plugin: SneakyNPCs) {
         }
 
         return when (type.lowercase()) {
-            "selection" -> parseSelectionMenu(menuYaml, npcId, path)
+            "selection" -> parseSelectionMenu(menuYaml, npcId, path, shopDate, availabilityReport)
             "quest" -> parseQuestMenu(menuYaml, npcId, path)
-            "shop" -> parseShopMenu(menuYaml, npcId, path)
+            "shop" -> parseShopMenu(menuYaml, npcId, path, shopDate, availabilityReport)
             "custom" -> parseCustomMenu(menuYaml, npcId, path)
             "external" -> parseExternalMenu(menuYaml, npcId, path)
             "tailor" -> parseTailorMenu(menuYaml, path)
@@ -1081,7 +1262,13 @@ class ConfigManager(private val plugin: SneakyNPCs) {
         }
     }
 
-    fun parseSelectionMenu(menuYaml: Map<*, *>, npcId: String, path: String): Pair<SelectionMenu?, List<Component>> {
+    fun parseSelectionMenu(
+        menuYaml: Map<*, *>,
+        npcId: String,
+        path: String,
+        shopDate: LocalDate = currentShopDate(),
+        availabilityReport: ShopOfferAvailabilityReportAccumulator = ShopOfferAvailabilityReportAccumulator(shopDate),
+    ): Pair<SelectionMenu?, List<Component>> {
         val errors = ValidationErrors()
         val allowedKeys = setOf("type", "gui", "options")
         val unknownKeys = menuYaml.keys.filterIsInstance<String>().filterNot { it in allowedKeys }
@@ -1110,7 +1297,13 @@ class ConfigManager(private val plugin: SneakyNPCs) {
                 errors.add("$path.options[$index]", "Option must be a menu object, got ${describeValue(optionEntry)}")
                 continue
             }
-            val (optionMenu, optionErrors) = parseMenuNode(optionMap, npcId, "$path.options[$index]")
+            val (optionMenu, optionErrors) = parseMenuNode(
+                optionMap,
+                npcId,
+                "$path.options[$index]",
+                shopDate,
+                availabilityReport,
+            )
             errors.addAll(optionErrors)
             if (optionMenu != null) {
                 options.add(optionMenu)
@@ -1324,7 +1517,13 @@ class ConfigManager(private val plugin: SneakyNPCs) {
         )
     }
 
-    fun parseShopMenu(menuYaml: Map<*, *>, npcId: String, path: String): Pair<ShopMenu?, List<Component>> {
+    fun parseShopMenu(
+        menuYaml: Map<*, *>,
+        npcId: String,
+        path: String,
+        shopDate: LocalDate = currentShopDate(),
+        availabilityReport: ShopOfferAvailabilityReportAccumulator = ShopOfferAvailabilityReportAccumulator(shopDate),
+    ): Pair<ShopMenu?, List<Component>> {
         val errors = ValidationErrors()
         val allowedKeys = setOf("type", "items", "bankDisplay")
         val unknownKeys = menuYaml.keys.filterIsInstance<String>().filterNot { it in allowedKeys }
@@ -1347,7 +1546,7 @@ class ConfigManager(private val plugin: SneakyNPCs) {
             errors.add("$path.items", "List is empty")
             return Pair(null, errors)
         }
-        val items = mutableListOf<ShopMenuItem>()
+        val parsedItems = mutableListOf<ParsedShopMenuItem>()
         for ((itemIndex, itemEntry) in itemsYaml.withIndex()) {
             val itemMap = asObjectMap(itemEntry)
             if (itemMap == null) {
@@ -1359,15 +1558,15 @@ class ConfigManager(private val plugin: SneakyNPCs) {
                 errors.addAll(itemErrors)
                 continue
             }
-            if (item != null) items.add(item)
+            if (item != null) parsedItems.add(item)
         }
 
-        if (items.isEmpty()) {
+        if (parsedItems.isEmpty()) {
             errors.add("$path.items", "No valid shop items found")
             return Pair(null, errors)
         }
 
-        val duplicateItemIds = items.groupingBy { it.itemId }.eachCount()
+        val duplicateItemIds = parsedItems.groupingBy { it.menuItem.itemId }.eachCount()
             .filterValues { it > 1 }
             .keys
             .sorted()
@@ -1379,12 +1578,32 @@ class ConfigManager(private val plugin: SneakyNPCs) {
             return Pair(null, errors)
         }
 
-        return Pair(ShopMenu(items = items, bankDisplayCurrencyIds = bankDisplayCurrencyIds), errors.toList())
+        val availabilityResult = evaluateShopOfferAvailability(
+            offers = parsedItems.map { parsedItem ->
+                ConfiguredShopOfferAvailability(
+                    offerId = parsedItem.offerId,
+                    itemId = parsedItem.menuItem.itemId,
+                    availability = parsedItem.availability,
+                )
+            },
+            shopDate = shopDate,
+            seedContext = ShopOfferAvailabilitySeedContext(
+                npcId = npcId,
+                shopMenuPath = normalizeConfigPath(path),
+            ),
+        )
+        availabilityReport.record(availabilityResult)
+        val visibleOfferIds = availabilityResult.visibleOfferIds.toSet()
+        val visibleItems = parsedItems
+            .filter { it.offerId in visibleOfferIds }
+            .map { it.menuItem }
+
+        return Pair(ShopMenu(items = visibleItems, bankDisplayCurrencyIds = bankDisplayCurrencyIds), errors.toList())
     }
 
-    fun parseShopMenuItem(itemYaml: Map<*, *>, npcId: String, path: String): Pair<ShopMenuItem?, List<Component>> {
+    internal fun parseShopMenuItem(itemYaml: Map<*, *>, npcId: String, path: String): Pair<ParsedShopMenuItem?, List<Component>> {
         val errors = ValidationErrors()
-        val allowedKeys = setOf("item", "buyStacks", "requirements", "limits")
+        val allowedKeys = setOf("item", "buyStacks", "requirements", "limits", "availability")
         val unknownKeys = itemYaml.keys.filterIsInstance<String>().filterNot { it in allowedKeys }
         if (unknownKeys.isNotEmpty()) {
             errors.add(path, "Unknown item keys ${unknownKeys.joinToString(", ")}")
@@ -1494,15 +1713,28 @@ class ConfigManager(private val plugin: SneakyNPCs) {
             return Pair(null, errors.toList())
         }
 
+        val (availability, availabilityErrors) = parseShopOfferAvailabilityConfig(
+            rawAvailability = itemYaml["availability"],
+            path = "$path.availability",
+        )
+        if (availabilityErrors.isNotEmpty()) {
+            errors.addAll(availabilityErrors)
+            return Pair(null, errors.toList())
+        }
+
         return Pair(
-            ShopMenuItem(
-                itemId = itemId,
-                magicItem = magicItem,
-                stockEntryId = buildShopStockEntryId(path, itemId),
-                buyStacks = buyStacks,
-                requirements = requirements,
-                price = ShopPrice(currencyId = currencyId, amount = amount),
-                limits = limits,
+            ParsedShopMenuItem(
+                menuItem = ShopMenuItem(
+                    itemId = itemId,
+                    magicItem = magicItem,
+                    stockEntryId = buildShopStockEntryId(path, itemId),
+                    buyStacks = buyStacks,
+                    requirements = requirements,
+                    price = ShopPrice(currencyId = currencyId, amount = amount),
+                    limits = limits,
+                ),
+                offerId = buildShopOfferId(npcId, path.substringBeforeLast(".items["), itemId),
+                availability = availability,
             ),
             errors.toList()
         )

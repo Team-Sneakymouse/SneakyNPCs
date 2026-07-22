@@ -36,7 +36,7 @@ data class NPCQuestItem(
     val magicItem: MagicItem,
     val amount: Int
 )
-private data class QuestItemRequirement(
+private data class TalliedQuestItem(
     val magicItem: MagicItem,
     val magicItemId: String,
     val amount: Int,
@@ -169,19 +169,21 @@ class QuestMenu(val quests: List<NPCQuest>) : NPCMenu(MenuType.QUEST) {
     }
 
     fun questCompletable(player: Player, quest: NPCQuest): Boolean {
+        if (plugin.questDebugService.isEnabled(player)) return true
+
         if (quest.items.isEmpty()) {
             player.sendMessage("Quest has no items - uncompletable")
             return false // End of quest chain
         }
-        val requirements = tallyQuestItemRequirements(quest) ?: return false
+        val questItems = tallyQuestItems(quest) ?: return false
 
-        for (requirement in requirements) {
+        for (questItem in questItems) {
             val ownedAmount = player.inventory.sumOf { stack ->
-                if (magicItemId(stack) == requirement.magicItemId) stack?.amount ?: 0 else 0
+                if (magicItemId(stack) == questItem.magicItemId) stack?.amount ?: 0 else 0
             }
-            if (ownedAmount < requirement.amount) {
-                val itemName = PlainTextComponentSerializer.plainText().serialize(requirement.magicItem.itemStack.displayName())
-                plugin.logger.warning("Player ${player.name} doesn't have enough ${itemName}: $ownedAmount/${requirement.amount}")
+            if (ownedAmount < questItem.amount) {
+                val itemName = PlainTextComponentSerializer.plainText().serialize(questItem.magicItem.itemStack.displayName())
+                plugin.logger.warning("Player ${player.name} doesn't have enough ${itemName}: $ownedAmount/${questItem.amount}")
                 return false
             }
         }
@@ -202,17 +204,22 @@ class QuestMenu(val quests: List<NPCQuest>) : NPCMenu(MenuType.QUEST) {
             return
         }
 
-        val requirements = tallyQuestItemRequirements(quest) ?: return
+        val questDebugEnabled = plugin.questDebugService.isEnabled(player)
+        val questItems = if (questDebugEnabled) {
+            emptyList()
+        } else {
+            tallyQuestItems(quest) ?: return
+        }
 
-        // Remove required amounts from player's inventory
-        for (requirement in requirements) {
-            var remaining = requirement.amount
+        // Remove Quest Items from the player's inventory
+        for (questItem in questItems) {
+            var remaining = questItem.amount
             val inv = player.inventory
 
             for (slot in 0 until inv.size) {
                 if (remaining <= 0) break
                 val stack = inv.getItem(slot) ?: continue
-                if (magicItemId(stack) != requirement.magicItemId) continue
+                if (magicItemId(stack) != questItem.magicItemId) continue
 
                 val take = minOf(stack.amount, remaining)
                 if (stack.amount > take) {
@@ -230,8 +237,8 @@ class QuestMenu(val quests: List<NPCQuest>) : NPCMenu(MenuType.QUEST) {
 
         plugin.inventoryTransactionLogger.log(
             player = player,
-            removedItems = requirements.flatMap { requirement ->
-                InventoryAuditItems.split(requirement.magicItem.itemStack, requirement.amount.toLong())
+            removedItems = questItems.flatMap { questItem ->
+                InventoryAuditItems.split(questItem.magicItem.itemStack, questItem.amount.toLong())
             },
             addedItems = quest.rewards.filterIsInstance<NPCQuestItemReward>().flatMap { reward ->
                 InventoryAuditItems.split(reward.magicItem.itemStack, reward.amount.toLong())
@@ -330,8 +337,8 @@ class QuestMenu(val quests: List<NPCQuest>) : NPCMenu(MenuType.QUEST) {
         return stacks
     }
 
-    private fun tallyQuestItemRequirements(quest: NPCQuest): List<QuestItemRequirement>? {
-        val requirements = linkedMapOf<String, QuestItemRequirement>()
+    private fun tallyQuestItems(quest: NPCQuest): List<TalliedQuestItem>? {
+        val questItemsByMagicItemId = linkedMapOf<String, TalliedQuestItem>()
         for (item in quest.items) {
             val magicItemId = magicItemId(item.magicItem.itemStack) ?: run {
                 plugin.logger.warning(
@@ -340,14 +347,14 @@ class QuestMenu(val quests: List<NPCQuest>) : NPCMenu(MenuType.QUEST) {
                 )
                 return null
             }
-            val current = requirements[magicItemId]
-            requirements[magicItemId] = if (current == null) {
-                QuestItemRequirement(item.magicItem, magicItemId, item.amount)
+            val current = questItemsByMagicItemId[magicItemId]
+            questItemsByMagicItemId[magicItemId] = if (current == null) {
+                TalliedQuestItem(item.magicItem, magicItemId, item.amount)
             } else {
                 current.copy(amount = current.amount + item.amount)
             }
         }
-        return requirements.values.toList()
+        return questItemsByMagicItemId.values.toList()
     }
 
     private fun magicItemId(stack: ItemStack?): String? {

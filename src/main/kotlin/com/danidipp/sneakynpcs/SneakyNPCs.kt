@@ -34,6 +34,7 @@ class SneakyNPCs : JavaPlugin() {
     lateinit var shopItemStockService: ShopItemStockService
     lateinit var inventoryTransactionLogger: InventoryTransactionLogger
     lateinit var shopTransactionService: ShopTransactionService
+    lateinit var questDebugService: QuestDebugService
     val npcs = mutableMapOf<String, NPC>()
     private val configReloadInProgress = AtomicBoolean(false)
 
@@ -55,6 +56,7 @@ class SneakyNPCs : JavaPlugin() {
         npcWalletService = NpcWalletService(currencyGraphService)
         shopItemStockService = ShopItemStockService()
         inventoryTransactionLogger = CoreProtectInventoryTransactionLogger.create(this) ?: NoOpInventoryTransactionLogger
+        questDebugService = QuestDebugService()
         shopTransactionService = ShopTransactionService(
             currencyGraphService,
             balanceService,
@@ -72,6 +74,7 @@ class SneakyNPCs : JavaPlugin() {
         //events
         Bukkit.getServer().pluginManager.registerEvents(NPCGui.GuiListener, this)
         Bukkit.getServer().pluginManager.registerEvents(persistenceManager, this)
+        Bukkit.getServer().pluginManager.registerEvents(questDebugService, this)
         Bukkit.getServer().pluginManager.registerEvents(MagicSpellsListener(this), this)
 
         logger.info("Plugin initialized. Waiting for MagicSpellsLoadedEvent before loading NPC configs.")

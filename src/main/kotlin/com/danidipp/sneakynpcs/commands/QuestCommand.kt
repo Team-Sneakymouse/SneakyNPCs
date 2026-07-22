@@ -20,6 +20,19 @@ object QuestCommand {
 
     fun createCommand(): LiteralArgumentBuilder<CommandSourceStack> {
         return Commands.literal("quest")
+            .then(Commands.literal("debug")
+                .requires { it.sender is Player }
+                .executes { ctx ->
+                    val player = ctx.source.sender as Player
+                    val enabled = plugin.questDebugService.toggle(player)
+                    val status = if (enabled) "enabled" else "disabled"
+                    val color = if (enabled) NamedTextColor.GREEN else NamedTextColor.RED
+                    player.sendMessage(
+                        plugin.prefix.append(Component.text("Quest debug mode $status.", color))
+                    )
+                    Command.SINGLE_SUCCESS
+                }
+            )
             .then(Commands.literal("list")
                 .then(Commands.argument("player", ArgumentTypes.player())
                     .then(Commands.argument("npc", StringArgumentType.word())

@@ -29,6 +29,7 @@ import com.danidipp.sneakynpcs.shop.ShopRequirement
 import com.nisovin.magicspells.MagicSpells
 import com.nisovin.magicspells.util.magicitems.MagicItem
 import com.nisovin.magicspells.util.magicitems.MagicItems
+import com.nisovin.magicspells.variables.Variable
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.JoinConfiguration
 import net.kyori.adventure.text.format.NamedTextColor
@@ -133,6 +134,51 @@ internal fun parseBankDisplayConfig(
         }
     }
     return Pair(bankDisplay, errors.toList())
+}
+
+internal fun parseShopRequirementConfig(
+    requirementYaml: Map<*, *>,
+    path: String,
+    variableLookup: (String) -> Variable?,
+): Pair<ShopRequirement?, List<Component>> {
+    val errors = ValidationErrors()
+    val allowedKeys = setOf("variable", "min", "hideOffer")
+    val unknownKeys = requirementYaml.keys.filterIsInstance<String>().filterNot { it in allowedKeys }
+    if (unknownKeys.isNotEmpty()) {
+        errors.add(path, "Unknown requirement keys ${unknownKeys.joinToString(", ")}")
+    }
+
+    val variableName = requirementYaml["variable"] as? String
+    if (variableName.isNullOrBlank()) {
+        errors.add("$path.variable", "Missing or invalid field")
+        return Pair(null, errors.toList())
+    }
+    val variable = variableLookup(variableName) ?: run {
+        errors.add("$path.variable", "Unknown MagicVariable '$variableName'")
+        return Pair(null, errors.toList())
+    }
+
+    val min = when (val minRaw = requirementYaml["min"]) {
+        is Int -> minRaw
+        is String -> minRaw.toIntOrNull()
+        is Number -> minRaw.toInt()
+        else -> null
+    }
+    if (min == null) {
+        errors.add("$path.min", "Missing or invalid field")
+        return Pair(null, errors.toList())
+    }
+
+    val hideOffer = when (val hideOfferRaw = requirementYaml["hideOffer"]) {
+        null -> false
+        is Boolean -> hideOfferRaw
+        else -> {
+            errors.add("$path.hideOffer", "Must be a boolean")
+            false
+        }
+    }
+
+    return Pair(ShopRequirement(variable, min, hideOffer), errors.toList())
 }
 
 internal fun validateQuestItemCount(items: List<*>, path: String): List<Component> {
@@ -1644,31 +1690,13 @@ class ConfigManager(private val plugin: SneakyNPCs) {
                         errors.add("$path.requirements[$reqIndex]", "Requirement must be an object, got ${describeValue(reqEntry)}")
                         continue
                     }
-                    val reqAllowedKeys = setOf("variable", "min")
-                    val reqUnknown = reqMap.keys.filterIsInstance<String>().filterNot { it in reqAllowedKeys }
-                    if (reqUnknown.isNotEmpty()) {
-                        errors.add("$path.requirements[$reqIndex]", "Unknown requirement keys ${reqUnknown.joinToString(", ")}")
-                    }
-                    val variableName = reqMap["variable"] as? String
-                    if (variableName.isNullOrBlank()) {
-                        errors.add("$path.requirements[$reqIndex].variable", "Missing or invalid field")
-                        continue
-                    }
-                    val variable = MagicSpells.getVariableManager().getVariable(variableName) ?: run {
-                        errors.add("$path.requirements[$reqIndex].variable", "Unknown MagicVariable '$variableName'")
-                        continue
-                    }
-                    val min = when (val minRaw = reqMap["min"]) {
-                        is Int -> minRaw
-                        is String -> minRaw.toIntOrNull()
-                        is Number -> minRaw.toInt()
-                        else -> null
-                    }
-                    if (min == null) {
-                        errors.add("$path.requirements[$reqIndex].min", "Missing or invalid field")
-                        continue
-                    }
-                    requirements.add(ShopRequirement(variable, min))
+                    val (requirement, requirementErrors) = parseShopRequirementConfig(
+                        requirementYaml = reqMap,
+                        path = "$path.requirements[$reqIndex]",
+                        variableLookup = { variableName -> MagicSpells.getVariableManager().getVariable(variableName) },
+                    )
+                    errors.addAll(requirementErrors)
+                    if (requirement != null) requirements.add(requirement)
                 }
             }
         }

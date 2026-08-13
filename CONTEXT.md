@@ -112,6 +112,10 @@ _Avoid_: Refill, regenerate
 A condition a player must satisfy before Purchasing a Shop Offer.
 _Avoid_: Requirement, shop requirement
 
+**Requirement-Hidden Shop Offer**:
+A Shop Offer that is not shown to a player because the player does not satisfy a Shop Item Requirement that hides the offer. Shop Offers remain shown when the player only fails Shop Item Requirements that do not hide the offer.
+_Avoid_: Unavailable offer, disabled offer, invisible item
+
 **Quest Item**:
 An item required to complete a Quest.
 _Avoid_: Requirement, turn-in item

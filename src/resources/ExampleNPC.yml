@@ -57,6 +57,7 @@ rootMenu:
           requirements:
             - variable: lumberjack_level
               min: 1
+              hideOffer: true
         - item: item-wood-oak
           limits:
             maxQuantity: 5

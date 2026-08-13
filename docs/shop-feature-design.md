@@ -33,7 +33,7 @@ Reverse exchange is auto-generated from configured forward links.
 ### ShopMenuItem
 - `item` (MagicItem id)
 - `buyStacks` (bool, default false)
-- `requirements` (optional list of `{ variable, min }`)
+- `requirements` (optional list of `{ variable, min, hideOffer }`; `hideOffer` defaults false)
 - `price` (derived from item PDC, not from NPC config)
 
 ## Config Layout
@@ -64,6 +64,7 @@ Reserved fields for V2 at NPC root:
 - Keep existing 24-slot product layout.
 - If items > 24, page toggle appears in slot `44`.
 - Shops can contain any number of configured items; pages are generated in 24-item chunks.
+- Shop Offers with unmet requirements marked `hideOffer: true` are hidden from that player and pagination compacts around visible offers.
 - Left click buys 1.
 - Shift click buys max stack (respect item max stack size) when `buyStacks: true`.
 

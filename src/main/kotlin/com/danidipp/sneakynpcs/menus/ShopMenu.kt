@@ -37,12 +37,25 @@ data class ShopMenuItem(
 
 internal fun formatBankDisplayAmount(amount: Long): String = "%,d".format(Locale.US, amount)
 
+internal data class ShopOfferPage<T>(
+    val index: Int,
+    val offers: List<T>,
+)
+
+internal fun <T> shopOfferPage(offers: List<T>, requestedPage: Int, pageSize: Int): ShopOfferPage<T> {
+    require(pageSize > 0) { "pageSize must be positive" }
+    val maxPage = if (offers.isEmpty()) 0 else (offers.size - 1) / pageSize
+    val page = requestedPage.coerceIn(0, maxPage)
+    return ShopOfferPage(page, offers.drop(page * pageSize).take(pageSize))
+}
+
 class ShopMenu(
     private val items: List<ShopMenuItem>,
     private val bankDisplayCurrencyIds: List<String>,
 ) : NPCMenu(MenuType.SHOP) {
     private val plugin = SneakyNPCs.getInstance()
     private val pageState = ConcurrentHashMap<UUID, Int>()
+    private val renderedPageOffers = ConcurrentHashMap<UUID, List<ShopMenuItem>>()
     private val sessionLedger = ConcurrentHashMap<UUID, ShopSessionLedger>()
 
     private val productSlots = listOf(
@@ -58,11 +71,12 @@ class ShopMenu(
     override fun open(gui: NPCGui, player: Player, playerData: PlayerData?) {
         sessionLedger.computeIfAbsent(player.uniqueId) { ShopSessionLedger() }
         val page = pageState[player.uniqueId] ?: 0
-        render(gui, player, page.coerceIn(0, getMaxPage()), playerData)
+        render(gui, player, page, playerData)
     }
 
     override fun onClose(gui: NPCGui, player: Player) {
         pageState.remove(player.uniqueId)
+        renderedPageOffers.remove(player.uniqueId)
         val ledger = sessionLedger.remove(player.uniqueId) ?: return
         if (!ledger.hasActivity()) return
         player.sendMessage(ShopMessageFormatter.buildSessionTotalsMessage(plugin.currencyGraphService, ledger))
@@ -78,8 +92,12 @@ class ShopMenu(
 
         if (!isAllowedBuyClick(event.click)) return
 
-        if (event.slot == pageToggleSlot && items.size > 24) {
-            val nextPage = (currentPage + 1) % (getMaxPage() + 1)
+        val visibleOffers = getVisibleOffers(player)
+        val maxPage = getMaxPage(visibleOffers.size)
+        val resolvedCurrentPage = currentPage.coerceIn(0, maxPage)
+
+        if (event.slot == pageToggleSlot && visibleOffers.size > productSlots.size) {
+            val nextPage = (resolvedCurrentPage + 1) % (maxPage + 1)
             gui.playNavigationSound()
             render(gui, player, nextPage)
             return
@@ -88,9 +106,14 @@ class ShopMenu(
         val slotIndex = productSlots.indexOf(event.slot)
         if (slotIndex == -1) return
 
-        val itemIndex = currentPage * 24 + slotIndex
-        val shopItem = items.getOrNull(itemIndex) ?: return
-        val quantity = getClickQuantity(event, shopItem)
+        val renderedOffers = renderedPageOffers[player.uniqueId]
+            ?: shopOfferPage(visibleOffers, resolvedCurrentPage, productSlots.size).offers
+        val shopOffer = renderedOffers.getOrNull(slotIndex) ?: return
+        if (!plugin.requirementService.offerVisible(player, shopOffer.requirements)) {
+            render(gui, player, resolvedCurrentPage)
+            return
+        }
+        val quantity = getClickQuantity(event, shopOffer)
         val playerData = plugin.persistenceManager.dataCache[player.uniqueId]
         if (playerData == null) {
             player.playSound(player.location, "lom:fail_wrong", 1f, 1f)
@@ -98,15 +121,15 @@ class ShopMenu(
             return
         }
 
-        when (val result = plugin.shopTransactionService.purchase(player, playerData, gui.npc, shopItem, quantity)) {
+        when (val result = plugin.shopTransactionService.purchase(player, playerData, gui.npc, shopOffer, quantity)) {
             is ShopTransactionService.PurchaseResult.Success -> {
                 sessionLedger.computeIfAbsent(player.uniqueId) { ShopSessionLedger() }.apply {
                     recordSpent(result.spent)
                     recordEarned(result.earned)
                 }
                 player.playSound(player.location, "lom:buy", 1f, 1f)
-                player.sendMessage(buildPurchaseMessage(shopItem, result.deliveredQuantity))
-                render(gui, player, currentPage, playerData)
+                player.sendMessage(buildPurchaseMessage(shopOffer, result.deliveredQuantity))
+                render(gui, player, resolvedCurrentPage, playerData)
             }
             is ShopTransactionService.PurchaseResult.Failure -> {
                 player.playSound(player.location, "lom:fail_wrong", 1f, 1f)
@@ -116,7 +139,9 @@ class ShopMenu(
     }
 
     private fun render(gui: NPCGui, player: Player, requestedPage: Int, playerData: PlayerData? = null) {
-        val page = requestedPage.coerceIn(0, getMaxPage())
+        val visibleOffers = getVisibleOffers(player)
+        val offerPage = shopOfferPage(visibleOffers, requestedPage, productSlots.size)
+        val page = offerPage.index
         pageState[player.uniqueId] = page
 
         val inv = gui.inventory
@@ -133,16 +158,19 @@ class ShopMenu(
         buildWalletStatusItem(player, npc)?.let { inv.setItem(walletSlot, it) }
         buildCurrencyTooltipItem(player)?.let { inv.setItem(39, it) }
 
-        val pageStart = page * 24
-        val pageItems = items.drop(pageStart).take(24)
-        for ((index, shopItem) in pageItems.withIndex()) {
+        renderedPageOffers[player.uniqueId] = offerPage.offers
+        for ((index, shopOffer) in offerPage.offers.withIndex()) {
             val slot = productSlots[index]
-            inv.setItem(slot, buildDisplayItem(npc, resolvedPlayerData, shopItem))
+            inv.setItem(slot, buildDisplayItem(npc, resolvedPlayerData, shopOffer))
         }
 
-        if (items.size > 24) {
+        if (visibleOffers.size > productSlots.size) {
             inv.setItem(pageToggleSlot, makeItem("lom:npcs/pagecount", page + 1, hideTooltip))
         }
+    }
+
+    private fun getVisibleOffers(player: Player): List<ShopMenuItem> {
+        return items.filter { shopOffer -> plugin.requirementService.offerVisible(player, shopOffer.requirements) }
     }
 
     private fun getClickQuantity(event: InventoryClickEvent, shopItem: ShopMenuItem): Int {
@@ -405,5 +433,5 @@ class ShopMenu(
             }
     }
 
-    private fun getMaxPage(): Int = if (items.isEmpty()) 0 else (items.size - 1) / 24
+    private fun getMaxPage(itemCount: Int): Int = if (itemCount == 0) 0 else (itemCount - 1) / productSlots.size
 }

@@ -21,6 +21,7 @@ data class ShopPrice(
 data class ShopRequirement(
     val variable: Variable,
     val min: Int,
+    val hideOffer: Boolean = false,
 )
 
 enum class PaymentSource {

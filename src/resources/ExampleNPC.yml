@@ -58,6 +58,8 @@ rootMenu:
             - variable: lumberjack_level
               min: 1
               hideOffer: true
+            - reputation: 12.5
+              hideOffer: true
         - item: item-wood-oak
           limits:
             maxQuantity: 5

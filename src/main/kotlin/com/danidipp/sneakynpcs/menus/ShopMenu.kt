@@ -6,7 +6,8 @@ import com.danidipp.sneakynpcs.ShopItemLimitConfig
 import com.danidipp.sneakynpcs.SneakyNPCs
 import com.danidipp.sneakynpcs.shop.ShopPrice
 import com.danidipp.sneakynpcs.shop.ShopMessageFormatter
-import com.danidipp.sneakynpcs.shop.ShopRequirement
+import com.danidipp.sneakynpcs.shop.ShopItemRequirement
+import com.danidipp.sneakynpcs.shop.ShopRequirementEvaluation
 import com.danidipp.sneakynpcs.shop.ShopSessionLedger
 import com.danidipp.sneakynpcs.shop.ShopTransactionService
 import com.nisovin.magicspells.util.magicitems.MagicItem
@@ -30,7 +31,7 @@ data class ShopMenuItem(
     val magicItem: MagicItem,
     val stockEntryId: String,
     val buyStacks: Boolean,
-    val requirements: List<ShopRequirement>,
+    val requirements: List<ShopItemRequirement>,
     val price: ShopPrice,
     val limits: ShopItemLimitConfig?,
 )
@@ -92,7 +93,8 @@ class ShopMenu(
 
         if (!isAllowedBuyClick(event.click)) return
 
-        val visibleOffers = getVisibleOffers(player)
+        val playerData = plugin.persistenceManager.dataCache[player.uniqueId]
+        val visibleOffers = getVisibleOffers(player, gui.npc, playerData)
         val maxPage = getMaxPage(visibleOffers.size)
         val resolvedCurrentPage = currentPage.coerceIn(0, maxPage)
 
@@ -109,12 +111,15 @@ class ShopMenu(
         val renderedOffers = renderedPageOffers[player.uniqueId]
             ?: shopOfferPage(visibleOffers, resolvedCurrentPage, productSlots.size).offers
         val shopOffer = renderedOffers.getOrNull(slotIndex) ?: return
-        if (!plugin.requirementService.offerVisible(player, shopOffer.requirements)) {
+        val requirementEvaluation = ShopRequirementEvaluation(
+            player,
+            playerData?.getReputation(gui.npc.id) ?: 0.0,
+        )
+        if (!plugin.requirementService.offerVisible(shopOffer.requirements, requirementEvaluation)) {
             render(gui, player, resolvedCurrentPage)
             return
         }
         val quantity = getClickQuantity(event, shopOffer)
-        val playerData = plugin.persistenceManager.dataCache[player.uniqueId]
         if (playerData == null) {
             player.playSound(player.location, "lom:fail_wrong", 1f, 1f)
             player.sendMessage(plugin.prefix.append(Component.text("Failed to fetch your data. Please tell Dani.", NamedTextColor.RED)))
@@ -139,14 +144,14 @@ class ShopMenu(
     }
 
     private fun render(gui: NPCGui, player: Player, requestedPage: Int, playerData: PlayerData? = null) {
-        val visibleOffers = getVisibleOffers(player)
+        val resolvedPlayerData = playerData ?: plugin.persistenceManager.dataCache[player.uniqueId]
+        val visibleOffers = getVisibleOffers(player, gui.npc, resolvedPlayerData)
         val offerPage = shopOfferPage(visibleOffers, requestedPage, productSlots.size)
         val page = offerPage.index
         pageState[player.uniqueId] = page
 
         val inv = gui.inventory
         val npc = gui.npc
-        val resolvedPlayerData = playerData ?: plugin.persistenceManager.dataCache[player.uniqueId]
         val hideTooltip = shouldHideTooltip(player)
         inv.clear()
         for (slot in 0 until inv.size) {
@@ -169,8 +174,12 @@ class ShopMenu(
         }
     }
 
-    private fun getVisibleOffers(player: Player): List<ShopMenuItem> {
-        return items.filter { shopOffer -> plugin.requirementService.offerVisible(player, shopOffer.requirements) }
+    private fun getVisibleOffers(player: Player, npc: com.danidipp.sneakynpcs.NPC, playerData: PlayerData?): List<ShopMenuItem> {
+        val reputation = playerData?.getReputation(npc.id) ?: 0.0
+        val evaluation = ShopRequirementEvaluation(player, reputation)
+        return items.filter { shopOffer ->
+            plugin.requirementService.offerVisible(shopOffer.requirements, evaluation)
+        }
     }
 
     private fun getClickQuantity(event: InventoryClickEvent, shopItem: ShopMenuItem): Int {

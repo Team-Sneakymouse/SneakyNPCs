@@ -25,7 +25,9 @@ import com.danidipp.sneakynpcs.menus.TaxesRewardConfig
 import com.danidipp.sneakynpcs.menus.calculateTaxesCurrencyUnits
 import com.danidipp.sneakynpcs.shop.CurrencyLookup
 import com.danidipp.sneakynpcs.shop.ShopPrice
-import com.danidipp.sneakynpcs.shop.ShopRequirement
+import com.danidipp.sneakynpcs.shop.VariableShopRequirement
+import com.danidipp.sneakynpcs.shop.ShopItemRequirement
+import com.danidipp.sneakynpcs.shop.ReputationShopRequirement
 import com.nisovin.magicspells.MagicSpells
 import com.nisovin.magicspells.util.magicitems.MagicItem
 import com.nisovin.magicspells.util.magicitems.MagicItems
@@ -140,12 +142,42 @@ internal fun parseShopRequirementConfig(
     requirementYaml: Map<*, *>,
     path: String,
     variableLookup: (String) -> Variable?,
-): Pair<ShopRequirement?, List<Component>> {
+): Pair<ShopItemRequirement?, List<Component>> {
     val errors = ValidationErrors()
-    val allowedKeys = setOf("variable", "min", "hideOffer")
+    val allowedKeys = setOf("variable", "min", "reputation", "hideOffer")
     val unknownKeys = requirementYaml.keys.filterIsInstance<String>().filterNot { it in allowedKeys }
     if (unknownKeys.isNotEmpty()) {
         errors.add(path, "Unknown requirement keys ${unknownKeys.joinToString(", ")}")
+    }
+
+    val configuredTypes = listOf("variable", "reputation").count(requirementYaml::containsKey)
+    if (configuredTypes != 1) {
+        errors.add(path, "Requirement must define exactly one of 'variable' or 'reputation'")
+        return Pair(null, errors.toList())
+    }
+
+    val reputationRaw = requirementYaml["reputation"]
+    if (requirementYaml.containsKey("reputation")) {
+        if (requirementYaml.containsKey("min")) {
+            errors.add("$path.min", "Not allowed for a reputation requirement")
+        }
+        val minimum = (reputationRaw as? Number)?.toDouble()
+        when {
+            minimum == null -> errors.add("$path.reputation", "Missing or invalid field")
+            !minimum.isFinite() -> errors.add("$path.reputation", "Must be finite")
+            minimum < 0.0 -> errors.add("$path.reputation", "Must be >= 0")
+        }
+        if (!errors.isEmpty()) return Pair(null, errors.toList())
+
+        val hideOffer = when (val hideOfferRaw = requirementYaml["hideOffer"]) {
+            null -> false
+            is Boolean -> hideOfferRaw
+            else -> {
+                errors.add("$path.hideOffer", "Must be a boolean")
+                false
+            }
+        }
+        return Pair(ReputationShopRequirement(requireNotNull(minimum), hideOffer), errors.toList())
     }
 
     val variableName = requirementYaml["variable"] as? String
@@ -178,7 +210,7 @@ internal fun parseShopRequirementConfig(
         }
     }
 
-    return Pair(ShopRequirement(variable, min, hideOffer), errors.toList())
+    return Pair(VariableShopRequirement(variable, min, hideOffer), errors.toList())
 }
 
 internal fun validateQuestItemCount(items: List<*>, path: String): List<Component> {
@@ -1678,7 +1710,7 @@ class ConfigManager(private val plugin: SneakyNPCs) {
             }
         }
 
-        val requirements = mutableListOf<ShopRequirement>()
+        val requirements = mutableListOf<ShopItemRequirement>()
         val requirementsYaml = itemYaml["requirements"]
         if (requirementsYaml != null) {
             if (requirementsYaml !is List<*>) {

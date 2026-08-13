@@ -18,10 +18,24 @@ data class ShopPrice(
     val amount: Int,
 )
 
-data class ShopRequirement(
+sealed interface ShopItemRequirement {
+    val hideOffer: Boolean
+}
+
+data class VariableShopRequirement(
     val variable: Variable,
     val min: Int,
-    val hideOffer: Boolean = false,
+    override val hideOffer: Boolean = false,
+) : ShopItemRequirement
+
+data class ReputationShopRequirement(
+    val minimum: Double,
+    override val hideOffer: Boolean = false,
+) : ShopItemRequirement
+
+data class ShopRequirementEvaluation(
+    val player: org.bukkit.entity.Player,
+    val owningNpcReputation: Double,
 )
 
 enum class PaymentSource {

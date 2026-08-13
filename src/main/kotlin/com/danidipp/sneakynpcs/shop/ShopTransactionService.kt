@@ -124,7 +124,8 @@ class ShopTransactionService(
         quantity: Int,
     ): PurchaseResult {
         if (quantity <= 0) return PurchaseResult.Failure("Invalid quantity.")
-        if (!requirementService.requirementsMet(player, shopItem.requirements)) {
+        val requirementEvaluation = ShopRequirementEvaluation(player, playerData.getReputation(npc.id))
+        if (!requirementService.requirementsMet(shopItem.requirements, requirementEvaluation)) {
             return PurchaseResult.Failure("You do not meet the requirements.")
         }
 

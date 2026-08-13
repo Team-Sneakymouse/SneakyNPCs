@@ -1,25 +1,25 @@
 package com.danidipp.sneakynpcs.shop
 
-import org.bukkit.entity.Player
-
 class RequirementService {
-    fun requirementsMet(player: Player, requirements: List<ShopRequirement>): Boolean {
+    fun requirementsMet(requirements: List<ShopItemRequirement>, evaluation: ShopRequirementEvaluation): Boolean {
         if (requirements.isEmpty()) return true
         for (requirement in requirements) {
-            if (!requirementMet(player, requirement)) return false
+            if (!requirementMet(requirement, evaluation)) return false
         }
         return true
     }
 
-    fun offerVisible(player: Player, requirements: List<ShopRequirement>): Boolean {
+    fun offerVisible(requirements: List<ShopItemRequirement>, evaluation: ShopRequirementEvaluation): Boolean {
         for (requirement in requirements) {
-            if (requirement.hideOffer && !requirementMet(player, requirement)) return false
+            if (requirement.hideOffer && !requirementMet(requirement, evaluation)) return false
         }
         return true
     }
 
-    private fun requirementMet(player: Player, requirement: ShopRequirement): Boolean {
-        val value = requirement.variable.getValue(player).toInt()
-        return value >= requirement.min
+    private fun requirementMet(requirement: ShopItemRequirement, evaluation: ShopRequirementEvaluation): Boolean {
+        return when (requirement) {
+            is VariableShopRequirement -> requirement.variable.getValue(evaluation.player).toInt() >= requirement.min
+            is ReputationShopRequirement -> evaluation.owningNpcReputation >= requirement.minimum
+        }
     }
 }

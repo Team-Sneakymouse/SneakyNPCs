@@ -109,8 +109,12 @@ Replenishing Stock or an NPC Wallet over time.
 _Avoid_: Refill, regenerate
 
 **Shop Item Requirement**:
-A condition a player must satisfy before Purchasing a Shop Offer.
+A condition a player must satisfy before Purchasing a Shop Offer. A Shop Offer's Shop Item Requirements are conjunctive: the player must satisfy all of them.
 _Avoid_: Requirement, shop requirement
+
+**Reputation Requirement**:
+A Shop Item Requirement satisfied when the player's Reputation with the NPC that owns the Shop Offer is at least its inclusive, potentially fractional threshold. It cannot reference another NPC's Reputation.
+_Avoid_: Cross-NPC requirement, global reputation requirement
 
 **Requirement-Hidden Shop Offer**:
 A Shop Offer that is not shown to a player because the player does not satisfy a Shop Item Requirement that hides the offer. Shop Offers remain shown when the player only fails Shop Item Requirements that do not hide the offer.
@@ -137,7 +141,7 @@ An item, variable change, reputation change, or command applied when a Quest is 
 _Avoid_: Prize, completion output
 
 **Reputation**:
-A player's standing with one NPC.
+A player's standing with one NPC. A player with no recorded standing for an NPC has zero Reputation with that NPC.
 _Avoid_: Friendship, global reputation
 
 **Custom Menu**:

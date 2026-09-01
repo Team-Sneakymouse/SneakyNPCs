@@ -1,7 +1,7 @@
 name: SneakyNPCs
 version: "1.0"
 main: com.danidipp.sneakynpcs.SneakyNPCs
-api-version: "1.21"
+api-version: "26.2"
 authors:
   - DaniDipp
 description: "Paper plugin for managing NPC GUIs"

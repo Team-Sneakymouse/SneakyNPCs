@@ -6,6 +6,7 @@ import com.danidipp.sneakynpcs.PlayerData
 import com.danidipp.sneakynpcs.SneakyNPCs
 import io.papermc.paper.datacomponent.DataComponentTypes
 import io.papermc.paper.datacomponent.item.CustomModelData
+import io.papermc.paper.datacomponent.item.TooltipDisplay
 import org.bukkit.GameMode
 import org.bukkit.Material
 import org.bukkit.NamespacedKey
@@ -23,7 +24,10 @@ sealed class NPCMenu(val type: MenuType) {
     protected fun shouldHideTooltip(player: Player): Boolean = player.gameMode == GameMode.SURVIVAL
 
     fun makeItem(key: String, data: Any? = null, hideTooltip: Boolean = false) = ItemStack(Material.BRICKS).apply {
-        if (hideTooltip) setData(DataComponentTypes.HIDE_TOOLTIP)
+        if (hideTooltip) setData(
+            DataComponentTypes.TOOLTIP_DISPLAY,
+            TooltipDisplay.tooltipDisplay().hideTooltip(true),
+        )
         setData(DataComponentTypes.ITEM_MODEL, NamespacedKey(key.split(":").first(), key.split(":").last()))
         if (data != null) setData(DataComponentTypes.CUSTOM_MODEL_DATA, when (data) {
             is Int, is Double, is Number -> CustomModelData.customModelData().addFloat(data.toFloat())

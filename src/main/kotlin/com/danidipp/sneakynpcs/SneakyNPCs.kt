@@ -67,7 +67,7 @@ class SneakyNPCs : JavaPlugin() {
         )
 
         //commands
-        @field:Suppress("UnstableApiUsage")
+        @Suppress("UnstableApiUsage")
         lifecycleManager.registerEventHandler(LifecycleEvents.COMMANDS) {
             it.registrar().register(SneakNPCCommand.root.build())
         }

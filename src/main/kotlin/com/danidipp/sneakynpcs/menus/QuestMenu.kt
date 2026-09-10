@@ -105,8 +105,8 @@ class QuestMenu(val quests: List<NPCQuest>) : NPCMenu(MenuType.QUEST) {
         inv.clear()
         val isCompletable = questCompletable(player, currentQuest)
         inv.setItem(0, makeItem(npc.guiModelKey, "alt", hideTooltip))
-        inv.setItem(1, makeItem(npc.questModelKey, currentQuest.dialogue, hideTooltip))
-        inv.setItem(53, makeItem("lom:npcs/questbox", if (isCompletable) "complete" else "incomplete", hideTooltip))
+        inv.setItem(27, makeItem(npc.questModelKey, currentQuest.dialogue, hideTooltip))
+        inv.setItem(1, makeItem("lom:npcs/questbox", if (isCompletable) "complete" else "incomplete", hideTooltip))
         val tooltip = if (isCompletable && currentQuest.completion != null) currentQuest.completion else currentQuest.hint
         tooltip?.let {
             val item = buildTooltipItem(player, it)

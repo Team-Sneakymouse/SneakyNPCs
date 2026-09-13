@@ -67,26 +67,26 @@ rootMenu:
             restockAmount: 1
         # Availability hides Shop Offers from the shop unless any condition matches.
         # Missing availability means always available; an empty block means never available.
-        # - item: monday-special
-        #   availability:
-        #     weekdays: [monday]
-        # - item: fifth-day-special
-        #   availability:
-        #     daysOfMonth: [5]
-        # - item: ten-day-special
-        #   availability:
-        #     everyNthDayOfYear: 10
-        # - item: random-special-1
-        #   availability:
-        #     randomGroup: special
-        # - item: random-special-2
-        #   availability:
-        #     randomGroup: special
-        # - item: jackpot-special
-        #   availability:
-        #     chance: 0.01
-        # - item: disabled-placeholder
-        #   availability: {}
+        - item: monday-special
+          availability:
+            weekdays: [monday]
+        - item: fifth-day-special
+          availability:
+            daysOfMonth: [5]
+        - item: ten-day-special
+          availability:
+            everyNthDayOfYear: 10
+        - item: random-special-1
+          availability:
+            randomGroup: special
+        - item: random-special-2
+          availability:
+            randomGroup: special
+        - item: jackpot-special
+          availability:
+            chance: 0.01
+        - item: disabled-placeholder
+          availability: {}
     - type: custom
       gui: lumberjack_training
     - type: custom

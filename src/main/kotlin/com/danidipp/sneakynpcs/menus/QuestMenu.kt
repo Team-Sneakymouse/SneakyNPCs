@@ -330,7 +330,8 @@ class QuestMenu(val quests: List<NPCQuest>) : NPCMenu(MenuType.QUEST) {
     }
 
     private fun deliverItemReward(player: Player, reward: NPCQuestItemReward) {
-        for (stack in splitRewardItem(reward.magicItem.itemStack, reward.amount)) {
+        val item = reward.magicItem.createFor(player, reward.amount)
+        for (stack in splitRewardItem(item, reward.amount)) {
             val leftovers = player.inventory.addItem(stack)
             for (leftover in leftovers.values) {
                 player.world.dropItemNaturally(player.location, leftover)

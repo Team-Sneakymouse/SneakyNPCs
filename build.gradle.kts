@@ -17,13 +17,13 @@ dependencies {
 	implementation("org.jetbrains.kotlin:kotlin-stdlib:2.3.20")
     compileOnly("io.papermc.paper:paper-api:26.2.build.121-stable")
  	compileOnly("me.clip:placeholderapi:2.11.5")
-	compileOnly(files("libs/MagicSpells-4.0-Beta-13.jar"))
+	compileOnly(files("libs/MagicSpells-4.0-Beta-18.jar"))
 	compileOnly(files("libs/SneakyMannequins-Plugin-1.0.0.jar"))
 	testImplementation(kotlin("test"))
 	testCompileOnly("io.papermc.paper:paper-api:26.2.build.121-stable")
-	testCompileOnly(files("libs/MagicSpells-4.0-Beta-13.jar"))
+	testCompileOnly(files("libs/MagicSpells-4.0-Beta-18.jar"))
 	testRuntimeOnly("io.papermc.paper:paper-api:26.2.build.121-stable")
-	testRuntimeOnly(files("libs/MagicSpells-4.0-Beta-13.jar"))
+	testRuntimeOnly(files("libs/MagicSpells-4.0-Beta-18.jar"))
 }
 
 tasks.jar {

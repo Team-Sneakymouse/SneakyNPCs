@@ -1574,6 +1574,12 @@ class ConfigManager(private val plugin: SneakyNPCs) {
             return Pair(null, errors)
         }
 
+        val maxStackSize = magicItem.itemStack.maxStackSize
+        if (amount > maxStackSize) {
+            errors.add("$path.amount", "Must be <= $maxStackSize (max stack size of '$itemId'); use multiple item entries for larger requirements")
+            return Pair(null, errors)
+        }
+
         return Pair(NPCQuestItem(magicItem = magicItem, amount = amount), errors.toList())
     }
 

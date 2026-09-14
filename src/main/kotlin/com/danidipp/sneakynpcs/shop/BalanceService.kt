@@ -1,16 +1,25 @@
 package com.danidipp.sneakynpcs.shop
 
 import com.nisovin.magicspells.MagicSpells
+import org.bukkit.NamespacedKey
 import org.bukkit.entity.Player
 import org.bukkit.inventory.Inventory
 import org.bukkit.inventory.ItemStack
+import org.bukkit.persistence.PersistentDataType
 
 class BalanceService {
+    private val magicItemKey = NamespacedKey("magicspells", "magicitem")
+
+    private fun matchesCurrency(stack: ItemStack?, itemId: String): Boolean {
+        return stack?.itemMeta?.persistentDataContainer
+            ?.get(magicItemKey, PersistentDataType.STRING) == itemId
+    }
+
     fun getInventoryCurrencyUnits(player: Player, currency: CurrencyDefinition): Long {
-        val template = currency.itemMagicItem?.itemStack ?: return 0L
+        val itemId = currency.itemId ?: return 0L
         var total = 0L
         for (stack in player.inventory.contents) {
-            if (stack == null || !stack.isSimilar(template)) continue
+            if (stack == null || !matchesCurrency(stack, itemId)) continue
             total += stack.amount.toLong()
         }
         return total
@@ -43,14 +52,14 @@ class BalanceService {
 
     fun removeInventoryCurrencyUnits(player: Player, currency: CurrencyDefinition, amount: Long): Boolean {
         if (amount <= 0L) return true
-        val template = currency.itemMagicItem?.itemStack ?: return false
+        val itemId = currency.itemId ?: return false
         val inventory = player.inventory
         val removable = mutableListOf<Pair<Int, Int>>()
         var remaining = amount
 
         for (slot in 0 until inventory.size) {
             val stack = inventory.getItem(slot) ?: continue
-            if (!stack.isSimilar(template)) continue
+            if (!matchesCurrency(stack, itemId)) continue
             val take = minOf(stack.amount.toLong(), remaining).toInt()
             if (take <= 0) continue
             removable.add(slot to take)

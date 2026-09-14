@@ -141,7 +141,7 @@ class QuestMenu(val quests: List<NPCQuest>) : NPCMenu(MenuType.QUEST) {
         }
 
         if (event.slot in questConfirmButtonSlots) {
-            if (!questCompletable(player, currentQuest)) return
+            if (!questCompletable(player, currentQuest, reportMissingItems = player.hasPermission("dipp.debug"))) return
             completeQuest(player, playerData, gui.npc.id, currentQuest)
             gui.close()
         }
@@ -168,7 +168,7 @@ class QuestMenu(val quests: List<NPCQuest>) : NPCMenu(MenuType.QUEST) {
         }
     }
 
-    fun questCompletable(player: Player, quest: NPCQuest): Boolean {
+    fun questCompletable(player: Player, quest: NPCQuest, reportMissingItems: Boolean = false): Boolean {
         if (plugin.questDebugService.isEnabled(player)) return true
 
         if (quest.items.isEmpty()) {
@@ -176,16 +176,30 @@ class QuestMenu(val quests: List<NPCQuest>) : NPCMenu(MenuType.QUEST) {
             return false // End of quest chain
         }
         val questItems = tallyQuestItems(quest) ?: return false
+        val missingItems = mutableListOf<Component>()
 
         for (questItem in questItems) {
             val ownedAmount = player.inventory.sumOf { stack ->
                 if (magicItemId(stack) == questItem.magicItemId) stack?.amount ?: 0 else 0
             }
             if (ownedAmount < questItem.amount) {
-                val itemName = PlainTextComponentSerializer.plainText().serialize(questItem.magicItem.itemStack.displayName())
-                plugin.logger.warning("Player ${player.name} doesn't have enough ${itemName}: $ownedAmount/${questItem.amount}")
-                return false
+                val itemName = questItem.magicItem.itemStack.displayName()
+                val plainItemName = PlainTextComponentSerializer.plainText().serialize(itemName)
+                plugin.logger.warning("Player ${player.name} doesn't have enough ${plainItemName}: $ownedAmount/${questItem.amount}")
+                if (!reportMissingItems) return false
+                missingItems += Component.text("${questItem.amount - ownedAmount}x ")
+                    .append(itemName)
+                    .append(Component.text(" ($ownedAmount/${questItem.amount})"))
             }
+        }
+        if (missingItems.isNotEmpty()) {
+            var message = Component.text("Missing quest items: ", NamedTextColor.RED)
+            for ((index, item) in missingItems.withIndex()) {
+                if (index > 0) message = message.append(Component.text(", "))
+                message = message.append(item)
+            }
+            player.sendMessage(plugin.prefix.append(message))
+            return false
         }
         return true
     }

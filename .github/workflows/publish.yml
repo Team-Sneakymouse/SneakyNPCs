@@ -28,12 +28,6 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Prepare MagicSpells compile dependency
-        run: |
-          mkdir -p libs
-          curl -fsSL -o libs/MagicSpells-4.0-Beta-18.jar \
-            "https://maven.sneakyrp.com/releases/io/github/team-sneakymouse/magicspells-core/2026.10.09-17f579714ffe/magicspells-core-2026.10.09-17f579714ffe.jar"
-
       - name: Build and check
         run: ./gradlew build --no-daemon --console=plain
 

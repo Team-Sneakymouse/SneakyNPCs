@@ -22,11 +22,6 @@ version =
 		"$date-$hash"
 	}.get()
 
-val magicSpellsJar = file("libs/MagicSpells-4.0-Beta-18.jar").takeIf { it.exists() }
-	?: error(
-		"MagicSpells jar not found. Put MagicSpells-4.0-Beta-18.jar in libs/ " +
-			"(CI downloads it before build).",
-	)
 val sneakyMannequinsJar = file("libs/SneakyMannequins-Plugin-1.0.0.jar")
 
 repositories {
@@ -38,19 +33,26 @@ repositories {
 	}
 	mavenCentral()
 	maven("https://repo.papermc.io/repository/maven-public/")
+	maven("https://maven.sneakyrp.com/releases")
 }
 
 dependencies {
 	implementation("org.jetbrains.kotlin:kotlin-stdlib:2.3.20")
 	compileOnly("io.papermc.paper:paper-api:26.2.build.121-stable")
 	compileOnly("me.clip:placeholderapi:2.11.5")
-	compileOnly(files(magicSpellsJar))
+	compileOnly("io.github.team-sneakymouse:magicspells-core:2026.10.09-17f579714ffe") {
+		isTransitive = false
+	}
 	sneakyMannequinsJar.takeIf { it.exists() }?.let { compileOnly(files(it)) }
 	testImplementation(kotlin("test"))
 	testCompileOnly("io.papermc.paper:paper-api:26.2.build.121-stable")
-	testCompileOnly(files(magicSpellsJar))
+	testCompileOnly("io.github.team-sneakymouse:magicspells-core:2026.10.09-17f579714ffe") {
+		isTransitive = false
+	}
 	testRuntimeOnly("io.papermc.paper:paper-api:26.2.build.121-stable")
-	testRuntimeOnly(files(magicSpellsJar))
+	testRuntimeOnly("io.github.team-sneakymouse:magicspells-core:2026.10.09-17f579714ffe") {
+		isTransitive = false
+	}
 }
 
 tasks.processResources {

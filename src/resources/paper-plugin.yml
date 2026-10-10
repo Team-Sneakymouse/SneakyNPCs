@@ -1,5 +1,5 @@
 name: SneakyNPCs
-version: "1.0"
+version: "${version}"
 main: com.danidipp.sneakynpcs.SneakyNPCs
 api-version: "26.2"
 authors:

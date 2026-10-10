@@ -22,8 +22,6 @@ version =
 		"$date-$hash"
 	}.get()
 
-val sneakyMannequinsJar = file("libs/SneakyMannequins-Plugin-1.0.0.jar")
-
 repositories {
 	maven {
 		url = uri("https://plugins.gradle.org/m2/")
@@ -43,7 +41,6 @@ dependencies {
 	compileOnly("io.github.team-sneakymouse:magicspells-core:2026.10.09-17f579714ffe") {
 		isTransitive = false
 	}
-	sneakyMannequinsJar.takeIf { it.exists() }?.let { compileOnly(files(it)) }
 	testImplementation(kotlin("test"))
 	testCompileOnly("io.papermc.paper:paper-api:26.2.build.121-stable")
 	testCompileOnly("io.github.team-sneakymouse:magicspells-core:2026.10.09-17f579714ffe") {

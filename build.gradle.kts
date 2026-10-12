@@ -95,6 +95,7 @@ publishing {
 				name.set("SneakyNPCs")
 				description.set("Paper plugin for managing NPC GUIs.")
 				url.set("https://github.com/Team-Sneakymouse/SneakyNPCs")
+				properties.put("sneakyrp.deployment.type", "paper-plugin")
 				scm {
 					url.set("https://github.com/Team-Sneakymouse/SneakyNPCs")
 					connection.set("scm:git:https://github.com/Team-Sneakymouse/SneakyNPCs.git")

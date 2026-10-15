@@ -38,16 +38,16 @@ dependencies {
 	implementation("org.jetbrains.kotlin:kotlin-stdlib:2.3.20")
 	compileOnly("io.papermc.paper:paper-api:26.2.build.121-stable")
 	compileOnly("me.clip:placeholderapi:2.11.5")
-	compileOnly("io.github.team-sneakymouse:magicspells-core:2026.10.09-17f579714ffe") {
+	compileOnly("io.github.team-sneakymouse:magicspells:2026.10.15-f0a44ae377a3") {
 		isTransitive = false
 	}
 	testImplementation(kotlin("test"))
 	testCompileOnly("io.papermc.paper:paper-api:26.2.build.121-stable")
-	testCompileOnly("io.github.team-sneakymouse:magicspells-core:2026.10.09-17f579714ffe") {
+	testCompileOnly("io.github.team-sneakymouse:magicspells:2026.10.15-f0a44ae377a3") {
 		isTransitive = false
 	}
 	testRuntimeOnly("io.papermc.paper:paper-api:26.2.build.121-stable")
-	testRuntimeOnly("io.github.team-sneakymouse:magicspells-core:2026.10.09-17f579714ffe") {
+	testRuntimeOnly("io.github.team-sneakymouse:magicspells:2026.10.15-f0a44ae377a3") {
 		isTransitive = false
 	}
 }

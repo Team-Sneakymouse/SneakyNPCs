@@ -13,6 +13,11 @@ import org.bukkit.inventory.meta.Damageable
 import org.bukkit.persistence.PersistentDataType
 import java.math.BigInteger
 
+/**
+ * Coordinates Shop Menu purchases, sell payouts, and shared charges (including tailoring).
+ * Purchases update Stock and sells spend the NPC Wallet here; callers own offered-item
+ * removal and session summaries.
+ */
 class ShopTransactionService(
     private val currencyGraphService: CurrencyLookup,
     private val balanceService: BalanceService,

@@ -78,6 +78,7 @@ class PlayerData(
 
     @Synchronized
     fun getNpcWalletState(npcId: String): NpcWalletState? {
+        // Return a snapshot; persist changes through setNpcWalletState so dirty tracking runs.
         return npcWallets[npcId]?.deepCopy()
     }
 
@@ -329,6 +330,7 @@ class PersistenceManager(val plugin: SneakyNPCs): Listener {
         val tempFile = dataFolder.resolve("${data.uuid}.tmp.yaml")
 
         try {
+            // Finish the snapshot before replacing the last saved file.
             config.save(tempFile)
             moveFile(tempFile, playerFile)
         } catch (e: IOException){

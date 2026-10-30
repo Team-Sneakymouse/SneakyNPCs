@@ -150,6 +150,7 @@ class SneakyNPCs : JavaPlugin() {
                     emptyList<ConfigErrorInfo>()
                 )
                 val loadedCount = configs.size
+                // Keep working NPCs when replacements fail validation; removed files stay removed.
                 for (error in errors) {
                     configs[error.sourceId] = npcs[error.sourceId] ?: continue
                 }

@@ -1051,6 +1051,8 @@ class ConfigManager(private val plugin: SneakyNPCs) {
     private val storeCurrencyKey = NamespacedKey(MagicSpells.getInstance(), "magicspellpermanentdata_store_value_currency")
     private val storeAmountKey = NamespacedKey(MagicSpells.getInstance(), "magicspellpermanentdata_store_value_amount")
 
+    // Currency errors abort the batch; NPC errors retain source IDs so reload can
+    // keep each working NPC whose replacement failed validation.
     fun loadConfigs(): CompletableFuture<Pair<MutableMap<String, NPC>, List<ConfigErrorInfo>>> {
         configs.clear()
         return CompletableFuture.supplyAsync {

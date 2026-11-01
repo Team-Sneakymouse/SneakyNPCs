@@ -51,8 +51,8 @@ internal fun <T> shopOfferPage(offers: List<T>, requestedPage: Int, pageSize: In
 }
 
 class ShopMenu(
-    private val items: List<ShopMenuItem>,
-    private val bankDisplayCurrencyIds: List<String>,
+    internal val items: List<ShopMenuItem>,
+    internal val bankDisplayCurrencyIds: List<String>,
 ) : NPCMenu(MenuType.SHOP) {
     private val plugin = SneakyNPCs.getInstance()
     private val pageState = ConcurrentHashMap<UUID, Int>()

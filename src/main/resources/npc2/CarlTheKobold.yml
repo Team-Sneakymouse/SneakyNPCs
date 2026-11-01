@@ -1,0 +1,20 @@
+# NPC Screens 2 (/sneakynpcs opengui2 CarlTheKobold): read on every open, so edits need no reload.
+npc: CarlTheKobold        # the npc/<id>.yml whose shop, wallet and reputation this uses (default: this file's name)
+name: Carl the Kobold
+district: goattown        # the frame: goattown (more districts to come)
+portrait: default
+options: [shop, leave]    # up to three: shop, leave
+greetings:                # by mood: default (cheerful), night (sleepy), rain (gloomy)
+  default:
+    - "Welcome, welcome, {name}! Carl has banners, looms and lovely colours. Shiny things too, if you ask nice."
+    - "Ah, {name}! Goat Town's finest kobold merchant, at your service."
+  night:
+    - "*yawn* Late for shopping, {name}... but Carl never sleeps on a sale."
+  rain:
+    - "Wet goats everywhere, {name}. Buy a banner, cheer up the place."
+returning:                # once they've bought here: {item} is what they last bought
+  - "Back again, {name}! How is that {item} treating you?"
+  - "{name}! Carl remembers you. The {item} one!"
+shopLines:
+  - "Look, look! Touch nothing you won't buy."
+  - "Fresh stock, smells of goat."

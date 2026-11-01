@@ -7,3 +7,5 @@ Before implementing, read the resolved checkout's `README.md` and follow its lin
 For domain terminology, read `CONTEXT.md`.
 
 When changing currencies or cross-plugin commands, read `docs/integrations.md`.
+
+Work in progress: see `docs/HANDOFF.md` (NPC Screens 2, `/opengui2`).

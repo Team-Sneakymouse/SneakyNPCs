@@ -54,6 +54,14 @@ internal class Npc2Screen(
     private val greeting = Npc2Memory.greeting(player, config, mood)
     private val shop: ShopMenu? = npc.allMenus.filterIsInstance<ShopMenu>().firstOrNull()
     private var shownOffers: List<ShopMenuItem> = emptyList()
+    private val priceFactor = config.priceFactor(mood)
+
+    /** the offer at today's mood price: whole units, rounded, and never free unless it already was */
+    private fun moodPriced(offer: ShopMenuItem): ShopMenuItem {
+        if (priceFactor == 1.0 || offer.price.amount <= 0) return offer
+        val amount = Math.round(offer.price.amount * priceFactor).toInt().coerceAtLeast(1)
+        return offer.copy(price = offer.price.copy(amount = amount))
+    }
 
     override fun getInventory() = inventory
 
@@ -91,8 +99,19 @@ internal class Npc2Screen(
         title.centered(34, 75, "Standing")
         title.centered(34, 88, standing(rep))
         title.centered(34, 98, "Rep ${rep.toInt()}")
-        title.centered(34, 112, mood.label, Npc2Layout.GREEN)
+        title.centered(34, if (priceNote() == null) 112 else 107, mood.label, Npc2Layout.GREEN)
+        priceNote()?.let { title.centered(34, 117, it, Npc2Layout.GREEN) }
         return title.build()
+    }
+
+    /** "-10%" / "+10%" under the mood while it changes prices (the panel is only 54px wide) */
+    private fun priceNote(): String? {
+        val percent = Math.round((priceFactor - 1.0) * 100).toInt()
+        return when {
+            percent > 0 -> "+$percent%"
+            percent < 0 -> "$percent%"
+            else -> null
+        }
     }
 
     private fun fillHub(inv: Inventory) {
@@ -160,8 +179,16 @@ internal class Npc2Screen(
         stack.editMeta { meta ->
             val lore = meta.lore()?.toMutableList() ?: mutableListOf()
             lore.add(Component.empty())
-            lore.add(Component.text("Price: ", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)
-                .append(Component.text("${offer.price.amount} ${ShopMessageFormatter.formatCurrencyId(offer.price.currencyId)}", NamedTextColor.GOLD)))
+            val priced = moodPriced(offer)
+            var price = Component.text("Price: ", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)
+            if (priced.price.amount != offer.price.amount) {
+                price = price.append(Component.text("${offer.price.amount}", NamedTextColor.DARK_GRAY).decoration(TextDecoration.STRIKETHROUGH, true))
+                    .append(Component.space())
+            }
+            lore.add(price.append(Component.text("${priced.price.amount} ${ShopMessageFormatter.formatCurrencyId(offer.price.currencyId)}", NamedTextColor.GOLD)))
+            if (priced.price.amount != offer.price.amount) {
+                lore.add(Component.text("${config.name} is ${mood.label}", NamedTextColor.DARK_GRAY).decoration(TextDecoration.ITALIC, false))
+            }
             if (offer.buyStacks) lore.add(Component.text("Shift-click to buy a stack", NamedTextColor.DARK_GRAY).decoration(TextDecoration.ITALIC, false))
             meta.lore(lore)
         }
@@ -184,7 +211,7 @@ internal class Npc2Screen(
     }
 
     private fun buy(slotIndex: Int, click: ClickType) {
-        val offer = shownOffers.getOrNull(slotIndex) ?: return
+        val offer = shownOffers.getOrNull(slotIndex)?.let(::moodPriced) ?: return
         val playerData = plugin.persistenceManager.dataCache[player.uniqueId] ?: return fail("Failed to fetch your data. Please tell Dani.")
         val quantity = if (offer.buyStacks && click == ClickType.SHIFT_LEFT) offer.magicItem.itemStack.maxStackSize.coerceAtLeast(1) else 1
         when (val result = plugin.shopTransactionService.purchase(player, playerData, npc, offer, quantity)) {

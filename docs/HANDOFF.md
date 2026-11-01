@@ -8,7 +8,8 @@ A reimagined NPC menu system that runs beside the old `NPCGui` menus, which stay
   - Hub: frame, portrait, name plaque, greeting in a speech bubble, up to 3 option plaques (`shop`, `leave`), and standing (rep label/number) + mood.
   - Shop: the old shop's offers via the same services (`purchase`/`sell`, requirements, stock limits), with a price in the lore. It has pages, a sell box (slot 43; shift-click from your inventory also sells), purse/till tooltips, and back. Esc or a click outside returns to the hub.
   - Wild picks done: **remember you** (the last purchase per character + NPC, in player PDC `sneakynpcs:npc2/<npc>/<charuuid>`; returning greeting) and **moods** (night = sleepy, rain = gloomy; picks the greeting pool).
-- Not started (Rob's picks, in rough priority): moods changing prices, haggling needle minigame, friendship hearts + gifts dropped on the portrait, gossip (rep leaking within a district), animated portraits, the 3D offer on a counter, page-flip catalog with ribbon categories, phone/computer contacts. Also: more district frames, real per-NPC portraits, quest/tailor/taxes screens.
+- **Moods change prices** (2026-11-01): buy prices x1.1 sleepy, x0.9 gloomy (rounded, min 1), overridable per NPC with `moodPrices: {night, rain, default}`. Lore strikes through the base price; the hub shows `+10%`/`-10%` under the mood. Sell payouts are unchanged.
+- Not started (Rob's picks, in rough priority): haggling needle minigame, friendship hearts + gifts dropped on the portrait, gossip (rep leaking within a district), animated portraits, the 3D offer on a counter, page-flip catalog with ribbon categories, phone/computer contacts. Also: more district frames, real per-NPC portraits, quest/tailor/taxes screens.
 - Rejected by Rob: typewriter text, live market, shoplifting, daily deal, dialogue trees, diaries, letters, receipts, jobs board, heist/casino, haunted, caravans, player-run shops, strikes, birthdays.
 
 ## Key files

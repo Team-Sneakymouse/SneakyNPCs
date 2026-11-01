@@ -30,9 +30,13 @@ internal data class Npc2Config(
     /** lines for someone who's bought here before: {name} is their character, {item} what they last bought */
     val returning: List<String>,
     val shopLines: List<String>,
+    /** price multipliers by mood key, over Npc2Mood's defaults */
+    val moodPrices: Map<String, Double>,
     val warnings: List<String>,
 ) {
     fun greetingsFor(mood: Npc2Mood): List<String> = greetings[mood.key] ?: greetings["default"] ?: listOf("Well met, {name}.")
+
+    fun priceFactor(mood: Npc2Mood): Double = moodPrices[mood.key] ?: mood.priceFactor
 
     companion object {
         fun folder(dataFolder: File) = File(dataFolder, "npc2")
@@ -59,6 +63,9 @@ internal data class Npc2Config(
             val greetings = yaml.getConfigurationSection("greetings")?.let { section ->
                 section.getKeys(false).associateWith { section.getStringList(it) }.filterValues { it.isNotEmpty() }
             } ?: emptyMap()
+            val moodPrices = yaml.getConfigurationSection("moodPrices")?.let { section ->
+                section.getKeys(false).associateWith { section.getDouble(it, 1.0).coerceAtLeast(0.0) }
+            } ?: emptyMap()
             return Npc2Config(
                 id = id,
                 npcId = yaml.getString("npc") ?: id,
@@ -69,17 +76,21 @@ internal data class Npc2Config(
                 greetings = greetings,
                 returning = yaml.getStringList("returning"),
                 shopLines = yaml.getStringList("shopLines"),
+                moodPrices = moodPrices,
                 warnings = warnings,
             )
         }
     }
 }
 
-/** How the NPC feels, from the world they're in: it picks their greeting. */
-internal enum class Npc2Mood(val key: String, val label: String) {
-    CHEERFUL("default", "cheerful"),
-    SLEEPY("night", "sleepy"),
-    GLOOMY("rain", "gloomy");
+/**
+ * How the NPC feels, from the world they're in: it picks their greeting and nudges their prices (a gloomy NPC
+ * discounts to cheer up, a sleepy one charges extra for being woken). npc2/<id>.yml's moodPrices overrides the factor.
+ */
+internal enum class Npc2Mood(val key: String, val label: String, val priceFactor: Double) {
+    CHEERFUL("default", "cheerful", 1.0),
+    SLEEPY("night", "sleepy", 1.1),
+    GLOOMY("rain", "gloomy", 0.9);
 
     companion object {
         fun of(worldTime: Long, storm: Boolean): Npc2Mood = when {

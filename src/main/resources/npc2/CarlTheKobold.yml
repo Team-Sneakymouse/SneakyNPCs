@@ -18,3 +18,6 @@ returning:                # once they've bought here: {item} is what they last b
 shopLines:
   - "Look, look! Touch nothing you won't buy."
   - "Fresh stock, smells of goat."
+moodPrices:               # price multiplier by mood (defaults: night 1.1, rain 0.9, default 1.0)
+  night: 1.1
+  rain: 0.9

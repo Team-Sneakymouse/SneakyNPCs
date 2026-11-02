@@ -32,6 +32,12 @@ Screenshots: hub https://fast.rawb.tv/sFy1K.png, shop https://fast.rawb.tv/Vg39V
 - Drag to sell: on the shop the player's inventory clicks aren't cancelled any more (shift-click still sells; double-click stays blocked so it can't collect shop items). A drag that crosses the sell box sells the whole cursor stack.
 - Not asked for but visible: the vanilla "Inventory" label still draws over the bottom art.
 
+### Next (2026-11-02, pushed as SneakyNPCs 520e57e + craftengine-resources 78e6d424b)
+1. Wait for Rob's in-game re-test of round 1 fixes; act on his next screenshots.
+2. Offer to hide the vanilla "Inventory" label (Roamin's approach, or an empty-label trick) if Rob wants it gone.
+3. Then Rob's opengui2 wish list above (haggling, hearts/gifts, gossip, ...) ported to opengui3 style, as he picks.
+- Widths gotcha: any font whose space advance in npc3_font.txt differs from the provider's `space` advance drifts every later glyph; check both when adding fonts.
+
 ## Redesign round 3 (2026-11-02, after Rob's screenshot https://fast.rawb.tv/TLhci.png; not yet tested in game)
 Rob: art looked bad, wanted a 3/4 hi-res Carl; name plate misaligned; text "simple and cheap", wanted a different font with a shadow; no NPC talking at all; remove moods.
 - **Text**: every line now uses Cinzel Bold (OFL, `tools/npc2_art/Cinzel.ttf`) rasterised by `tools/npc2_render.py` at 3 texels per GUI pixel with a baked 2-texel drop shadow: `lom:npc2/text_<top>` (8 high, tops 5..140) and `lom:npc2/name_<top>` (11 high, tops 2..20, for the name plaque at top 3). The client adds 1px after each bitmap glyph, so the plugin follows each char with `` (-1px space) via `Npc2Text.kerned`. Advances are generated into `Npc2Glyphs.kt` by the pack script: never hand-edit it.

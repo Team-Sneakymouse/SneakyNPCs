@@ -17,7 +17,7 @@ Rob: art looked bad, wanted a 3/4 hi-res Carl; name plate misaligned; text "simp
 - **Text**: every line now uses Cinzel Bold (OFL, `tools/npc2_art/Cinzel.ttf`) rasterised by `tools/npc2_render.py` at 3 texels per GUI pixel with a baked 2-texel drop shadow: `lom:npc2/text_<top>` (8 high, tops 5..140) and `lom:npc2/name_<top>` (11 high, tops 2..20, for the name plaque at top 3). The client adds 1px after each bitmap glyph, so the plugin follows each char with `` (-1px space) via `Npc2Text.kerned`. Advances are generated into `Npc2Glyphs.kt` by the pack script: never hand-edit it.
 - **Portrait**: `portrait_carl.png` is a 208x208 (4x) 3/4 render of Carl's real skin (`tools/npc2_art/carl_skin.png`, from Citizens saves.yml's skin texture) over a painted sky, by `portrait_from_skin` (yaw -35, pitch 15). Other NPCs: drop their skin in npc2_art and add a line to `write()` + `Npc2Portraits`.
 - **Removed**: speech strip on the shop, greetings/returning/shopLines/talk, the Have a chat option, moods and mood prices (`Npc2Mood`). Under the portrait: Standing heading, standing, rep number.
-- Options now: shop, sell, leave. The hub art still has 4 plaques; the 4th is blank until Rob picks a 4th button.
+- Options now: shop, sell, leave. The 4th plaque stays blank on purpose (Rob, 2026-11-02: "leave a blank space for future design use", not yet implemented).
 
 ## Key files
 - `screens2/Npc2Screen.kt`: holder + listener, hub/shop pages, buy/sell, back/Esc handling.

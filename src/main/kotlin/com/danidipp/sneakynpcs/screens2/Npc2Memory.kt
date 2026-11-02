@@ -8,13 +8,10 @@ import org.bukkit.persistence.PersistentDataType
 
 /**
  * What an NPC remembers of a character: the last thing they bought from them, kept on the player (one entry per
- * character and NPC), so a greeting can bring it up.
+ * character and NPC).
  */
 internal object Npc2Memory {
-    private const val NAME_PLACEHOLDER = "%sneakycharacters_character_name_noformat%"
     private const val UUID_PLACEHOLDER = "%sneakycharacters_character_uuid%"
-
-    fun characterName(player: Player): String = placeholder(player, NAME_PLACEHOLDER) ?: player.name
 
     private fun characterId(player: Player): String =
         (placeholder(player, UUID_PLACEHOLDER) ?: player.uniqueId.toString()).lowercase().filter { it.isLetterOrDigit() || it == '-' }
@@ -33,14 +30,5 @@ internal object Npc2Memory {
 
     fun rememberPurchase(player: Player, npcId: String, itemName: String) {
         player.persistentDataContainer.set(key(player, npcId), PersistentDataType.STRING, itemName)
-    }
-
-    /** The NPC's opening line: a returning one if they remember a purchase, else one for their mood. */
-    fun greeting(player: Player, config: Npc2Config, mood: Npc2Mood): String {
-        val last = lastPurchase(player, config.npcId)
-        val pool = if (last != null && config.returning.isNotEmpty()) config.returning else config.greetingsFor(mood)
-        return pool.random()
-            .replace("{name}", characterName(player))
-            .replace("{item}", last ?: "wares")
     }
 }

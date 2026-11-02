@@ -12,14 +12,12 @@ A reimagined NPC menu system that runs beside the old `NPCGui` menus, which stay
 - Not started (Rob's picks, in rough priority): haggling needle minigame, friendship hearts + gifts dropped on the portrait, gossip (rep leaking within a district), animated portraits, the 3D offer on a counter, page-flip catalog with ribbon categories, phone/computer contacts. Also: more district frames, real per-NPC portraits, quest/tailor/taxes screens.
 - Rejected by Rob: typewriter text, live market, shoplifting, daily deal, dialogue trees, diaries, letters, receipts, jobs board, heist/casino, haunted, caravans, player-run shops, strikes, birthdays.
 
-## Redesign round 2 (done 2026-11-02, not yet tested in game)
-From Rob's second test (screenshots https://fast.rawb.tv/xY4zB.png, https://fast.rawb.tv/425Yf.png; Carl ref https://fast.rawb.tv/r3ie3.png):
-- **No speech bubble on the hub.** Right column: a title ribbon (`title:` in npc2/<id>.yml, row 0, text top 22), **4 option plaques** (rows 1-4), and a **reputation bar** (row 5: "Rep" + 16 glyph cells `` full / `` empty from x 86, top 112, filling over 0..100; hovering row 5 shows the number and what's needed for the next standing).
-- Options: `shop`, `sell` (opens the shop with "Drop goods in the gold box."), `talk` ("Have a chat": says the greeting in chat first, then `talk:` lines), `leave`. Default `[shop, sell, talk, leave]`.
-- Under the portrait: Standing heading, standing (Acquaintance renamed **Familiar** so it fits 54px), mood, mood price note.
-- **Carl's portrait** `portrait: carl` (``, drawn from his skin as a 3px-per-skin-pixel grid in `npc2_pack.py` `CARL`/`CARL_BODY`). The server's `~/dev-main/SneakyNPCs/npc2/CarlTheKobold.yml` was updated to match.
-- Shop screen unchanged; no frame offsets were visible in the screenshots.
-- Next: Rob tests in game; then his earlier picks (haggling, hearts + gifts, gossip, more districts/portraits).
+## Redesign round 3 (2026-11-02, after Rob's screenshot https://fast.rawb.tv/TLhci.png; not yet tested in game)
+Rob: art looked bad, wanted a 3/4 hi-res Carl; name plate misaligned; text "simple and cheap", wanted a different font with a shadow; no NPC talking at all; remove moods.
+- **Text**: every line now uses Cinzel Bold (OFL, `tools/npc2_art/Cinzel.ttf`) rasterised by `tools/npc2_render.py` at 3 texels per GUI pixel with a baked 2-texel drop shadow: `lom:npc2/text_<top>` (8 high, tops 5..140) and `lom:npc2/name_<top>` (11 high, tops 2..20, for the name plaque at top 3). The client adds 1px after each bitmap glyph, so the plugin follows each char with `` (-1px space) via `Npc2Text.kerned`. Advances are generated into `Npc2Glyphs.kt` by the pack script: never hand-edit it.
+- **Portrait**: `portrait_carl.png` is a 208x208 (4x) 3/4 render of Carl's real skin (`tools/npc2_art/carl_skin.png`, from Citizens saves.yml's skin texture) over a painted sky, by `portrait_from_skin` (yaw -35, pitch 15). Other NPCs: drop their skin in npc2_art and add a line to `write()` + `Npc2Portraits`.
+- **Removed**: speech strip on the shop, greetings/returning/shopLines/talk, the Have a chat option, moods and mood prices (`Npc2Mood`). Under the portrait: Standing heading, standing, rep number.
+- Options now: shop, sell, leave. The hub art still has 4 plaques; the 4th is blank until Rob picks a 4th button.
 
 ## Key files
 - `screens2/Npc2Screen.kt`: holder + listener, hub/shop pages, buy/sell, back/Esc handling.

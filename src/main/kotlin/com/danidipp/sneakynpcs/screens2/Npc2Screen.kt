@@ -49,20 +49,8 @@ internal class Npc2Screen(
     private var inventory: Inventory = Bukkit.createInventory(this, 54, Component.empty())
     /** set while one screen replaces another, so the old one's close isn't taken as Esc */
     private var switching = false
-    private var speech: String? = null
-    private var greeted = false
-    private val mood = Npc2Mood.of(player.world.time, player.world.hasStorm())
-    private val greeting = Npc2Memory.greeting(player, config, mood)
     private val shop: ShopMenu? = npc.allMenus.filterIsInstance<ShopMenu>().firstOrNull()
     private var shownOffers: List<ShopMenuItem> = emptyList()
-    private val priceFactor = config.priceFactor(mood)
-
-    /** the offer at today's mood price: whole units, rounded, and never free unless it already was */
-    private fun moodPriced(offer: ShopMenuItem): ShopMenuItem {
-        if (priceFactor == 1.0 || offer.price.amount <= 0) return offer
-        val amount = Math.round(offer.price.amount * priceFactor).toInt().coerceAtLeast(1)
-        return offer.copy(price = offer.price.copy(amount = amount))
-    }
 
     override fun getInventory() = inventory
 
@@ -85,12 +73,12 @@ internal class Npc2Screen(
         switching = false
     }
 
-    // --- the hub: portrait, title, standing, reputation bar and up to four options (no speech: Have a chat talks in chat)
+    // --- the hub: portrait, title, standing, reputation bar and up to four options
 
     private fun frame(char: Char) = Npc2Title()
         .glyph(Npc2Layout.FRAME_X, char, Npc2Layout.FRAME_W)
         .glyph(Npc2Layout.PORTRAIT_X, config.portrait, Npc2Layout.PORTRAIT_W)
-        .centered(88, 5, config.name, Npc2Layout.CREAM)
+        .centered(88, 3, config.name, Npc2Layout.CREAM, Npc2Font.NAME)
 
     private fun hubTitle(): Component {
         val title = frame(config.district.hub)
@@ -103,23 +91,12 @@ internal class Npc2Screen(
             title.glyph(Npc2Layout.REP_BAR_X + 5 * i, if (i < filled) Npc2Layout.REP_FULL else Npc2Layout.REP_EMPTY, 4)
         }
         title.centered(34, 75, "Standing")
-        title.centered(34, 90, standing(rep))
-        title.centered(34, if (priceNote() == null) 106 else 101, mood.label, Npc2Layout.GREEN)
-        priceNote()?.let { title.centered(34, 112, it, Npc2Layout.GREEN) }
+        title.centered(34, 92, standing(rep))
+        title.centered(34, 106, "${rep.toInt()}")
         return title.build()
     }
 
     private fun reputation() = plugin.persistenceManager.dataCache[player.uniqueId]?.getReputation(npc.id) ?: 0.0
-
-    /** "-10%" / "+10%" under the mood while it changes prices (the panel is only 54px wide) */
-    private fun priceNote(): String? {
-        val percent = Math.round((priceFactor - 1.0) * 100).toInt()
-        return when {
-            percent > 0 -> "+$percent%"
-            percent < 0 -> "$percent%"
-            else -> null
-        }
-    }
 
     private fun fillHub(inv: Inventory) {
         config.options.forEachIndexed { i, option ->
@@ -130,15 +107,6 @@ internal class Npc2Screen(
         val next = nextStanding(rep)
         val repItem = button("Reputation: ${rep.toInt()}", listOfNotNull(standing(rep), next?.let { "${it.second - rep.toInt()} more to ${it.first}" }))
         for (column in 3..8) inv.setItem(Npc2Layout.slot(column, 5), repItem)
-    }
-
-    /** Have a chat: the greeting first, then the NPC's talk lines, said in chat */
-    private fun chat() {
-        val line = if (!greeted) greeting else (config.talk.randomOrNull() ?: config.greetingsFor(mood).random())
-            .replace("{name}", Npc2Memory.characterName(player))
-        greeted = true
-        player.playSound(player.location, "lom:ui.button.click", 1f, 1f)
-        player.sendMessage(Component.text("${config.name}: ", NamedTextColor.GOLD).append(Component.text(line, NamedTextColor.WHITE)))
     }
 
     // --- the shop: the NPC's offers (the old shop's, through the same services), purse, till, sell box and pages
@@ -156,8 +124,6 @@ internal class Npc2Screen(
         val offers = visibleOffers()
         shopPage = shopOfferPage(offers, shopPage, PRODUCT_SLOTS.size).index
         val title = frame(config.district.shop)
-        val line = speech ?: config.shopLines.randomOrNull() ?: if (offers.isEmpty()) "Nothing for sale today." else "Have a look!"
-        title.text(65, 94, Npc2Text.wrap(line, 66, 1).firstOrNull() ?: "")
         title.text(9, Npc2Layout.cellY(3) + 5, "Purse")
         title.text(9, Npc2Layout.cellY(4) + 5, "Till")
         title.centered(Npc2Layout.cellX(0) + 9, Npc2Layout.cellY(5) + 5, "<")
@@ -199,16 +165,8 @@ internal class Npc2Screen(
         stack.editMeta { meta ->
             val lore = meta.lore()?.toMutableList() ?: mutableListOf()
             lore.add(Component.empty())
-            val priced = moodPriced(offer)
-            var price = Component.text("Price: ", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)
-            if (priced.price.amount != offer.price.amount) {
-                price = price.append(Component.text("${offer.price.amount}", NamedTextColor.DARK_GRAY).decoration(TextDecoration.STRIKETHROUGH, true))
-                    .append(Component.space())
-            }
-            lore.add(price.append(Component.text("${priced.price.amount} ${ShopMessageFormatter.formatCurrencyId(offer.price.currencyId)}", NamedTextColor.GOLD)))
-            if (priced.price.amount != offer.price.amount) {
-                lore.add(Component.text("${config.name} is ${mood.label}", NamedTextColor.DARK_GRAY).decoration(TextDecoration.ITALIC, false))
-            }
+            lore.add(Component.text("Price: ", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)
+                .append(Component.text("${offer.price.amount} ${ShopMessageFormatter.formatCurrencyId(offer.price.currencyId)}", NamedTextColor.GOLD)))
             if (offer.buyStacks) lore.add(Component.text("Shift-click to buy a stack", NamedTextColor.DARK_GRAY).decoration(TextDecoration.ITALIC, false))
             meta.lore(lore)
         }
@@ -231,7 +189,7 @@ internal class Npc2Screen(
     }
 
     private fun buy(slotIndex: Int, click: ClickType) {
-        val offer = shownOffers.getOrNull(slotIndex)?.let(::moodPriced) ?: return
+        val offer = shownOffers.getOrNull(slotIndex) ?: return
         val playerData = plugin.persistenceManager.dataCache[player.uniqueId] ?: return fail("Failed to fetch your data. Please tell Dani.")
         val quantity = if (offer.buyStacks && click == ClickType.SHIFT_LEFT) offer.magicItem.itemStack.maxStackSize.coerceAtLeast(1) else 1
         when (val result = plugin.shopTransactionService.purchase(player, playerData, npc, offer, quantity)) {
@@ -241,7 +199,6 @@ internal class Npc2Screen(
                 player.playSound(player.location, "lom:buy", 1f, 1f)
                 val total = offer.price.amount.toLong() * result.deliveredQuantity
                 player.sendMessage(Component.text("You bought ${result.deliveredQuantity}x $name for $total ${ShopMessageFormatter.formatCurrencyId(offer.price.currencyId)}", NamedTextColor.GRAY))
-                speech = "A fine choice!"
                 show(Page.SHOP)
             }
             is ShopTransactionService.PurchaseResult.Failure -> fail(result.message)
@@ -256,7 +213,6 @@ internal class Npc2Screen(
                 plugin.inventoryTransactionLogger.log(player = player, removedItems = listOf(offered.clone()))
                 player.playSound(player.location, "lom:buy", 1f, 1f)
                 player.sendMessage(Component.text("You sold ${offered.amount}x ${itemName(offered)} for ${result.payoutAmount} ${ShopMessageFormatter.formatCurrencyId(result.currencyId)}", NamedTextColor.GRAY))
-                speech = "I'll find a use for it."
                 show(Page.SHOP)
             }
             is ShopTransactionService.SellResult.Failure -> fail(result.message)
@@ -268,9 +224,8 @@ internal class Npc2Screen(
         player.sendMessage(plugin.prefix.append(Component.text(message, NamedTextColor.RED)))
     }
 
-    private fun navigate(next: Page, line: String? = null) {
+    private fun navigate(next: Page) {
         player.playSound(player.location, "lom:ui.button.click", 1f, 1f)
-        speech = line
         show(next)
     }
 
@@ -292,8 +247,7 @@ internal class Npc2Screen(
                 val option = config.options.getOrNull(event.slot / 9 - 1).takeIf { event.slot % 9 >= 3 } ?: return
                 when (option) {
                     Npc2Option.SHOP -> if (shop != null) navigate(Page.SHOP) else fail("${config.name} has nothing to sell.")
-                    Npc2Option.SELL -> if (shop != null) navigate(Page.SHOP, "Drop goods in the gold box.") else fail("${config.name} isn't buying.")
-                    Npc2Option.TALK -> chat()
+                    Npc2Option.SELL -> if (shop != null) navigate(Page.SHOP) else fail("${config.name} isn't buying.")
                     Npc2Option.LEAVE -> player.closeInventory()
                 }
             }

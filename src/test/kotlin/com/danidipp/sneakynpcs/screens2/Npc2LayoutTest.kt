@@ -7,9 +7,9 @@ import kotlin.test.assertTrue
 
 class Npc2LayoutTest {
     @Test
-    fun `widths follow the vanilla font`() {
-        assertEquals(6 + 2 + 3, Npc2Text.width("Hil"))
-        assertEquals(4, Npc2Text.width(" "))
+    fun `widths follow the generated glyph advances`() {
+        assertEquals(Npc2Glyphs.TEXT['H'.code - 32] + Npc2Glyphs.TEXT['i'.code - 32], Npc2Text.width("Hi"))
+        assertEquals(Npc2Glyphs.NAME[0], Npc2Text.width(" ", Npc2Font.NAME))
     }
 
     @Test
@@ -39,12 +39,5 @@ class Npc2LayoutTest {
         assertEquals(Npc2District.GOATTOWN, config.district)
         assertEquals(listOf(Npc2Option.SHOP), config.options)
         assertEquals(2, config.warnings.size)
-    }
-
-    @Test
-    fun `mood follows the weather and the clock`() {
-        assertEquals(Npc2Mood.GLOOMY, Npc2Mood.of(1000, true))
-        assertEquals(Npc2Mood.SLEEPY, Npc2Mood.of(18000, false))
-        assertEquals(Npc2Mood.CHEERFUL, Npc2Mood.of(6000, false))
     }
 }

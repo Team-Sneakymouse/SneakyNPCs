@@ -8,7 +8,6 @@ import java.io.File
 internal enum class Npc2Option(val label: String) {
     SHOP("Browse wares"),
     SELL("Sell goods"),
-    TALK("Have a chat"),
     LEAVE("Farewell");
 
     companion object {
@@ -29,21 +28,8 @@ internal data class Npc2Config(
     val district: Npc2District,
     val portrait: Char,
     val options: List<Npc2Option>,
-    /** greeting lines by mood (see Npc2Mood), "default" for any mood without its own */
-    val greetings: Map<String, List<String>>,
-    /** lines for someone who's bought here before: {name} is their character, {item} what they last bought */
-    val returning: List<String>,
-    val shopLines: List<String>,
-    /** what Have a chat says (in chat) after the greeting; {name} is their character */
-    val talk: List<String>,
-    /** price multipliers by mood key, over Npc2Mood's defaults */
-    val moodPrices: Map<String, Double>,
     val warnings: List<String>,
 ) {
-    fun greetingsFor(mood: Npc2Mood): List<String> = greetings[mood.key] ?: greetings["default"] ?: listOf("Well met, {name}.")
-
-    fun priceFactor(mood: Npc2Mood): Double = moodPrices[mood.key] ?: mood.priceFactor
-
     companion object {
         fun folder(dataFolder: File) = File(dataFolder, "npc2")
 
@@ -63,15 +49,9 @@ internal data class Npc2Config(
             val district = Npc2District.of(districtName) ?: Npc2District.GOATTOWN.also {
                 if (districtName != null) warnings.add("Unknown district '$districtName', using goattown")
             }
-            val options = (yaml.getStringList("options").ifEmpty { listOf("shop", "sell", "talk", "leave") }).mapNotNull { name ->
+            val options = (yaml.getStringList("options").ifEmpty { listOf("shop", "sell", "leave") }).mapNotNull { name ->
                 Npc2Option.of(name) ?: null.also { warnings.add("Unknown option '$name'") }
             }.take(4)
-            val greetings = yaml.getConfigurationSection("greetings")?.let { section ->
-                section.getKeys(false).associateWith { section.getStringList(it) }.filterValues { it.isNotEmpty() }
-            } ?: emptyMap()
-            val moodPrices = yaml.getConfigurationSection("moodPrices")?.let { section ->
-                section.getKeys(false).associateWith { section.getDouble(it, 1.0).coerceAtLeast(0.0) }
-            } ?: emptyMap()
             return Npc2Config(
                 id = id,
                 npcId = yaml.getString("npc") ?: id,
@@ -80,31 +60,8 @@ internal data class Npc2Config(
                 district = district,
                 portrait = Npc2Portraits.of(yaml.getString("portrait")),
                 options = options,
-                greetings = greetings,
-                returning = yaml.getStringList("returning"),
-                shopLines = yaml.getStringList("shopLines"),
-                talk = yaml.getStringList("talk"),
-                moodPrices = moodPrices,
                 warnings = warnings,
             )
-        }
-    }
-}
-
-/**
- * How the NPC feels, from the world they're in: it picks their greeting and nudges their prices (a gloomy NPC
- * discounts to cheer up, a sleepy one charges extra for being woken). npc2/<id>.yml's moodPrices overrides the factor.
- */
-internal enum class Npc2Mood(val key: String, val label: String, val priceFactor: Double) {
-    CHEERFUL("default", "cheerful", 1.0),
-    SLEEPY("night", "sleepy", 1.1),
-    GLOOMY("rain", "gloomy", 0.9);
-
-    companion object {
-        fun of(worldTime: Long, storm: Boolean): Npc2Mood = when {
-            storm -> GLOOMY
-            worldTime % 24000 in 13000..23000 -> SLEEPY
-            else -> CHEERFUL
         }
     }
 }

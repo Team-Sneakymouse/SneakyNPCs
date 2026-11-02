@@ -4,25 +4,4 @@ name: Carl the Kobold
 title: Goat Town Merchant # the line under the name (optional)
 district: goattown        # the frame: goattown (more districts to come)
 portrait: carl            # default or carl
-options: [shop, sell, talk, leave]  # up to four: shop, sell, talk, leave
-greetings:                # Have a chat says one first (in chat), by mood: default (cheerful), night (sleepy), rain (gloomy)
-  default:
-    - "Welcome, welcome, {name}! Carl has banners, looms and lovely colours. Shiny things too, if you ask nice."
-    - "Ah, {name}! Goat Town's finest kobold merchant, at your service."
-  night:
-    - "*yawn* Late for shopping, {name}... but Carl never sleeps on a sale."
-  rain:
-    - "Wet goats everywhere, {name}. Buy a banner, cheer up the place."
-returning:                # once they've bought here: {item} is what they last bought
-  - "Back again, {name}! How is that {item} treating you?"
-  - "{name}! Carl remembers you. The {item} one!"
-talk:                     # what Have a chat says after the greeting
-  - "Goats eat banners, {name}. Carl keeps his up high."
-  - "The looms? Carl's cousin weaves them. Do not ask which cousin."
-  - "Shiny things come Tuesdays. Or Thursdays. Carl forgets."
-shopLines:
-  - "Look, look! Touch nothing you won't buy."
-  - "Fresh stock, smells of goat."
-moodPrices:               # price multiplier by mood (defaults: night 1.1, rain 0.9, default 1.0)
-  night: 1.1
-  rain: 0.9
+options: [shop, sell, leave]  # up to four: shop, sell, leave

@@ -13,9 +13,21 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
+from npc2_render import advances, backdrop, portrait_from_skin, text_atlas
+
+ART = Path(__file__).parent / "npc2_art"
+KOTLIN_GLYPHS = Path(__file__).parent.parent / "src/main/kotlin/com/danidipp/sneakynpcs/screens2/Npc2Glyphs.kt"
+
 FRAME_X, FRAME_Y, FRAME_W, FRAME_H = -20, -12, 216, 140  # ends at y 128, so the "Inventory" label sits below it
 # one font per text line top, lom:npc2/text_<top>; a bitmap font's ascent (13 - top) can't exceed its height (8)
 TEXT_TOPS = range(5, 141)
+# the big name font, lom:npc2/name_<top>, 11 high (so tops from 2)
+NAME_TOPS = range(2, 21)
+# Cinzel (OFL, tools/npc2_art) drawn at 3 texels per GUI pixel: (GUI height, cell width, baseline, size, space advance)
+TEXT_FONT = (8, 36, 20, 21, 3)
+NAME_FONT = (11, 48, 27, 30, 4)
+# the client adds a 1px gap after every bitmap glyph, too loose at 3x: the plugin follows each char with KERN (-1px)
+KERN = ""
 # the hub's reputation bar: REP_SEGMENTS cells of 4 x 8 (advance 5) from REP_BAR_X, top REP_BAR_TOP
 REP_BAR_X, REP_BAR_TOP, REP_SEGMENTS = 86, 112, 16
 
@@ -117,11 +129,9 @@ def hub():
     cv = Canvas()
     cv.frame()
     cv.portrait_window()
-    # title ribbon beside the portrait (text top 22), a meadow tab on each end
+    # title ribbon beside the portrait (text top 22)
     x, y = cell(3, 0)
     cv.panel(x + 1, y + 1, 169, y + 17, PAPER[1:])
-    for ex in (x + 1, 166):
-        cv.rect(ex, y + 3, ex + 3, y + 15, GREEN[1])
     # four option plaques
     for i in range(4):
         x, y = cell(3, 1 + i)
@@ -162,9 +172,7 @@ def shop():
     for r in range(4):
         for c in range(3, 9):
             cv.slot(c, r)
-    # speech strip, sell box, page row
-    x, y = cell(3, 4)
-    cv.panel(x + 1, y + 1, x + 71, y + 17, PAPER[1:])
+    # sell box, page row
     sx, sy = cell(7, 4)
     cv.rect(sx, sy, sx + 18, sy + 18, GOLD[0])
     cv.rect(sx + 1, sy + 1, sx + 17, sy + 17, GOLD[1])
@@ -198,58 +206,6 @@ def portrait():
     return img
 
 
-# Carl the Kobold, from his skin: charcoal scales, navy bandana, black eyes, two fangs, navy shirt under a grey vest.
-# One letter per skin pixel, drawn 3 x 3.
-CARL_PALETTE = {
-    "s": (47, 43, 38), "S": (38, 35, 32), "d": (21, 19, 18), "h": (66, 60, 54),
-    "b": (20, 23, 35), "B": (30, 36, 53), "e": (0, 0, 0), "w": (226, 224, 218),
-    "n": (20, 23, 34), "N": (12, 16, 30), "g": (82, 83, 87), "G": (65, 66, 68),
-}
-CARL = [
-    " hs    sh ",
-    " ssssssss ",
-    " bBbBbBbB ",
-    " BbBbbBbB ",
-    " ssSssSss ",
-    " sewsSews ",
-    " ssSssSss ",
-    " SsddddsS ",
-    " swddddws ",
-    " sswddwss ",
-]
-CARL_BODY = [
-    "SsngNnngnsSs",
-    "ssggnnnnggss",
-    "sSnggnnggnSs",
-    "ssnnggggnnss",
-    "sSnnngGnnnSs",
-    "ssnnnggnnnss",
-    "sSnnnnnnnnSs",
-]
-
-
-def portrait_carl():
-    img = Image.new("RGBA", (52, 52), (150, 196, 226, 255))
-    d = ImageDraw.Draw(img)
-    for y in range(0, 14):
-        d.line([(0, y), (51, y)], fill=(124 + y * 2, 176 + y, 216))
-    d.rectangle([0, 34, 51, 51], fill=GREEN[1])
-    d.polygon([(0, 36), (14, 28), (30, 34), (51, 26), (51, 38), (0, 40)], fill=GREEN[2])
-
-    def block(grid, ox, oy):
-        for r, row in enumerate(grid):
-            for c, ch in enumerate(row):
-                if ch != " ":
-                    d.rectangle([ox + 3 * c, oy + 3 * r, ox + 3 * c + 2, oy + 3 * r + 2], fill=CARL_PALETTE[ch])
-
-    block(CARL_BODY, 8, 33)
-    block(CARL, 11, 3)
-    # a glint in each eye
-    for x in (17, 32):
-        img.putpixel((x, 18), (120, 120, 140, 255))
-    return img
-
-
 # vanilla ascii.png's characters, rows 2-7 (the rest left blank)
 ASCII_ROWS = ["\u0000" * 16] * 2 + [
     " !\"#$%&'()*+,-./",
@@ -267,17 +223,13 @@ PORTRAITS = {"": "npc2/portrait_default.png", "": "npc2/portrait_carl.png"
 REP_CHARS = {"": True, "": False}
 
 
-def text_font_name(top):
-    return f"text_{top}" if top >= 0 else f"text_n{-top}"
-
-
 def write(out):
     tex = out / "textures/font/npc2"
     tex.mkdir(parents=True, exist_ok=True)
     hub().save(tex / "goattown_hub.png")
     shop().save(tex / "goattown_shop.png")
     portrait().save(tex / "portrait_default.png")
-    portrait_carl().save(tex / "portrait_carl.png")
+    portrait_from_skin(ART / "carl_skin.png", background=backdrop(208)).save(tex / "portrait_carl.png")
     for c, filled in REP_CHARS.items():
         rep_segment(filled).save(tex / f"rep_{'full' if filled else 'empty'}.png")
     fonts = out / "font/npc2"
@@ -288,9 +240,30 @@ def write(out):
     providers += [{"type": "bitmap", "file": f"lom:font/{f}", "ascent": 13 - (py + 1), "height": 52, "chars": [c]} for c, f in PORTRAITS.items()]
     providers += [{"type": "bitmap", "file": f"lom:font/npc2/rep_{'full' if filled else 'empty'}.png", "ascent": 13 - REP_BAR_TOP, "height": 8, "chars": [c]} for c, filled in REP_CHARS.items()]
     (fonts / "frame.json").write_text(json.dumps({"providers": providers}, indent=1, ensure_ascii=True) + "\n")
-    for top in TEXT_TOPS:
-        font = {"providers": [{"type": "space", "advances": {" ": 4}}, {"type": "bitmap", "file": "minecraft:font/ascii.png", "ascent": 13 - top, "height": 8, "chars": ASCII_ROWS}]}
-        (fonts / f"{text_font_name(top)}.json").write_text(json.dumps(font, ensure_ascii=True) + "\n")
+    glyphs = {}
+    for kind, (height, cell_w, baseline, size, space), tops in (("text", TEXT_FONT, TEXT_TOPS), ("name", NAME_FONT, NAME_TOPS)):
+        atlas = text_atlas(ART / "Cinzel.ttf", height, 3, cell_w, baseline, size)
+        atlas.save(tex / f"{kind}.png")
+        glyphs[kind] = [space] + [a - 1 for a in advances(atlas, cell_w, height * 3, height)[1:]]
+        for top in tops:
+            font = {"providers": [{"type": "space", "advances": {" ": space, KERN: -1}}, {"type": "bitmap", "file": f"lom:font/npc2/{kind}.png", "ascent": 13 - top, "height": height, "chars": ASCII_ROWS}]}
+            (fonts / f"{kind}_{top}.json").write_text(json.dumps(font, ensure_ascii=True) + "\n")
+    write_glyphs(glyphs)
+
+
+def write_glyphs(glyphs):
+    """Npc2Glyphs.kt: the text fonts' advances, so the plugin can centre and wrap text."""
+    lines = [
+        "package com.danidipp.sneakynpcs.screens2",
+        "",
+        "// Generated by tools/npc2_pack.py from the pack's text atlases; don't edit by hand.",
+        "internal object Npc2Glyphs {",
+        "    /** advance in GUI pixels of each char from ' ' (0x20) to '~' (0x7e), with the KERN after it */",
+    ]
+    for kind, values in glyphs.items():
+        lines.append(f"    val {kind.upper()} = intArrayOf({', '.join(map(str, values))})")
+    lines.append("}")
+    KOTLIN_GLYPHS.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def preview(out, dest):

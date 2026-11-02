@@ -15,8 +15,6 @@ internal object Npc2Layout {
     const val PORTRAIT_X = 8
     const val PORTRAIT_W = 52
     const val TITLE_X = 8
-    /** a text font's ascent (13 - top) can't exceed its height (8), so no line starts above y 5 */
-    val TEXT_TOPS = 5..140
     /** the hub's reputation bar: REP_SEGMENTS glyphs 4px wide (advance 5) from REP_BAR_X */
     const val REP_BAR_X = 86
     const val REP_SEGMENTS = 16
@@ -26,13 +24,10 @@ internal object Npc2Layout {
     val FRAME_FONT: Key = Key.key("lom", "npc2/frame")
     val INK: TextColor = TextColor.color(0x462C18)
     val CREAM: TextColor = TextColor.color(0xF6ECCC)
-    val GREEN: TextColor = TextColor.color(0x3A5C28)
 
     fun cellX(column: Int) = 7 + 18 * column
     fun cellY(row: Int) = 17 + 18 * row
     fun slot(column: Int, row: Int) = row * 9 + column
-
-    fun textFont(top: Int): Key = Key.key("lom", if (top >= 0) "npc2/text_$top" else "npc2/text_n${-top}")
 }
 
 /** A district's frames, as the frame font's characters. */
@@ -49,20 +44,27 @@ internal object Npc2Portraits {
     fun of(name: String?): Char = chars[name?.lowercase()] ?: chars.getValue("default")
 }
 
-/** The vanilla font's advances (glyph width plus its gap), which the pack's text fonts share. */
-internal object Npc2Text {
-    private val advances = buildMap {
-        "!',.:;i|".forEach { put(it, 2) }
-        "`l".forEach { put(it, 3) }
-        "\"()*I[]t{} ".forEach { put(it, 4) }
-        "<>fk".forEach { put(it, 5) }
-        "@~".forEach { put(it, 7) }
-    }
+/** Which of the pack's Cinzel text fonts a line uses: lom:npc2/<prefix><top>. */
+internal enum class Npc2Font(val prefix: String, val tops: IntRange, val advances: IntArray) {
+    /** 8 high; a font's ascent (13 - top) can't exceed its height, so no line starts above y 5 */
+    TEXT("text_", 5..140, Npc2Glyphs.TEXT),
+    /** 11 high, for the name plaque */
+    NAME("name_", 2..20, Npc2Glyphs.NAME);
 
+    fun key(top: Int): Key = Key.key("lom", "npc2/$prefix${top.coerceIn(tops)}")
+}
+
+/** The pack's text fonts' advances (generated into Npc2Glyphs), for centring and wrapping. */
+internal object Npc2Text {
     /** Characters the pack's text fonts can't draw are swapped for '?'. */
     fun clean(text: String): String = text.map { if (it.code in 32..126) it else '?' }.joinToString("")
 
-    fun width(text: String): Int = clean(text).sumOf { advances[it] ?: 6 }
+    /** the text fonts' -1px space char, put after each glyph to undo the client's 1px gap (npc2_pack.py KERN) */
+    private const val KERN = ''
+
+    fun kerned(text: String): String = buildString { text.forEach { append(it); if (it != ' ') append(KERN) } }
+
+    fun width(text: String, font: Npc2Font = Npc2Font.TEXT): Int = clean(text).sumOf { font.advances[it.code - 32] }
 
     /** Splits text into lines of at most maxWidth pixels, breaking at spaces (or inside a word too long for a line). */
     fun wrap(text: String, maxWidth: Int, maxLines: Int = Int.MAX_VALUE): List<String> {
@@ -128,17 +130,16 @@ internal class Npc2Title {
         x += width + 1
     }
 
-    fun text(left: Int, top: Int, text: String, color: TextColor = Npc2Layout.INK) = apply {
+    fun text(left: Int, top: Int, text: String, color: TextColor = Npc2Layout.INK, font: Npc2Font = Npc2Font.TEXT) = apply {
         val clean = Npc2Text.clean(text)
         if (clean.isEmpty()) return@apply
-        val clampedTop = top.coerceIn(Npc2Layout.TEXT_TOPS)
         moveTo(left)
-        parts.add(Component.text(clean).font(Npc2Layout.textFont(clampedTop)).color(color))
-        x += Npc2Text.width(clean)
+        parts.add(Component.text(Npc2Text.kerned(clean)).font(font.key(top)).color(color))
+        x += Npc2Text.width(clean, font)
     }
 
-    fun centered(centre: Int, top: Int, text: String, color: TextColor = Npc2Layout.INK) =
-        text(centre - Npc2Text.width(text) / 2, top, text, color)
+    fun centered(centre: Int, top: Int, text: String, color: TextColor = Npc2Layout.INK, font: Npc2Font = Npc2Font.TEXT) =
+        text(centre - Npc2Text.width(text, font) / 2, top, text, color, font)
 
     /** white, so the art isn't tinted by the title's default grey (0x404040) */
     fun build(): Component = Component.text().color(NamedTextColor.WHITE).append(parts).build()

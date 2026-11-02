@@ -3,7 +3,7 @@
 ## What it is
 A reimagined NPC menu system that runs beside the old `NPCGui` menus, which stay untouched until Rob swaps them. Each screen is a 6-row chest whose **title draws the whole screen**: a district frame image, the NPC's portrait, and live text placed with shifted copies of the vanilla font. It's the same idea as dragonband_gui, styled after Spell Book 2.0. Nothing about an NPC's words is baked into art.
 
-## Status (2026-11-01)
+## Status (2026-11-02)
 - **v1 done and pushed** (SneakyNPCs `main`, craftengine-resources `main` 2249572a7). It has **not been tested in game yet**; Rob restarts the server.
   - Hub: frame, portrait, name plaque, greeting in a speech bubble, up to 3 option plaques (`shop`, `leave`), and standing (rep label/number) + mood.
   - Shop: the old shop's offers via the same services (`purchase`/`sell`, requirements, stock limits), with a price in the lore. It has pages, a sell box (slot 43; shift-click from your inventory also sells), purse/till tooltips, and back. Esc or a click outside returns to the hub.
@@ -11,6 +11,14 @@ A reimagined NPC menu system that runs beside the old `NPCGui` menus, which stay
 - **Moods change prices** (2026-11-01): buy prices x1.1 sleepy, x0.9 gloomy (rounded, min 1), overridable per NPC with `moodPrices: {night, rain, default}`. Lore strikes through the base price; the hub shows `+10%`/`-10%` under the mood. Sell payouts are unchanged.
 - Not started (Rob's picks, in rough priority): haggling needle minigame, friendship hearts + gifts dropped on the portrait, gossip (rep leaking within a district), animated portraits, the 3D offer on a counter, page-flip catalog with ribbon categories, phone/computer contacts. Also: more district frames, real per-NPC portraits, quest/tailor/taxes screens.
 - Rejected by Rob: typewriter text, live market, shoplifting, daily deal, dialogue trees, diaries, letters, receipts, jobs board, heist/casino, haunted, caravans, player-run shops, strikes, birthdays.
+
+## NEXT: redesign round 2 (Rob, 2026-11-02, after the second in-game test)
+Rob's screenshots of the fixed build: https://fast.rawb.tv/xY4zB.png and https://fast.rawb.tv/425Yf.png (download with curl into the scratchpad, then look). Carl reference art to adapt into the portrait: https://fast.rawb.tv/r3ie3.png. His asks, in his words:
+1. "there needs to be 4 buttons the player can click like browse wares": 4 option plaques on the hub (art + `Npc2Option` + `options:` take(4)). Pick 2 sensible new options (e.g. talk/rumours, sell) or make them configurable; keep shop and leave.
+2. "remove the dialogue box completely. i just want the buttons": drop the speech bubble and greeting text from the hub (the greeting/returning/mood text may still go in chat or a tooltip, or nowhere; ask only if it really matters). Use the freed space for the buttons.
+3. "its missing the reputation bar and the title of the character as well in the design": a drawn rep bar (fill from reputation, e.g. a font strip of N segments) and a character title line (e.g. `title: Goat Town Merchant` in npc2/<id>.yml) under or near the name.
+4. Portrait: adapt Carl's art (the r3ie3 link) into a 52x52 `portrait_carl` (add to `Npc2Portraits`, set `portrait: carl` in CarlTheKobold.yml; the server's data copy in `~/dev-main/SneakyNPCs/npc2/` must be edited too, since the jar only writes it when the folder is missing).
+Also check the screenshots for remaining frame/text offsets. Then re-run tools/npc2_pack.py, commit both repos to main, and send Rob preview renders.
 
 ## Key files
 - `screens2/Npc2Screen.kt`: holder + listener, hub/shop pages, buy/sell, back/Esc handling.

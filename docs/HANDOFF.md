@@ -23,19 +23,14 @@ Rob's take on round 3 (https://fast.rawb.tv/DnJuP.png): "looks very cheap" next 
 - Regenerate with `uv run --no-project --with pillow python tools/npc3_art.py <craftengine-resources>/resources/dev/resourcepack/assets/lom docs/npc3_preview.png`, then commit both repos.
 - Container slot math: chest rows at y 18+18r, player rows at 139+18r, hotbar 197 (vanilla ChestMenu). Art glyph tops sit at container y via ascent 13 - y.
 
-### Open TODOs: Rob's first in-game feedback (2026-11-02), do these next
-Hub (screenshot https://fast.rawb.tv/sFy1K.png):
-1. The portrait faces the wrong way; mirror it so Carl faces the other direction (`portrait_from_skin` yaw sign, or flip the image in `npc3_art.py`).
-2. In the hub ledger, rename the till heading to **"Carl's Wallet"** (use the NPC name: "<Name>'s Wallet").
-3. Under the wallet's gold, add **"Gold per Hour:"** with the gold per hour the NPC's till regenerates. Find where till regen is configured (the old ShopMenu/bank code or the shop config) and read it from there.
-4. Under **Your Purse**, list three lines: **Silver**, **Gold**, **Dragon Coins** (the player's balance of each).
-Shop (screenshot https://fast.rawb.tv/Vg39V.png):
-5. The bottom half (player inventory art) doesn't line up with the real slots; fix the sockets/art offset.
-6. Keep the word **"Till"** in the shop (don't rename it to Wallet there).
-7. The page text "1 / 1" is off-centre or misplaced; fix it.
-8. The purse should show its **gold** balance by default (it showed "417" with no unit). Give the purse text room all the way up to the till text ("Till 1000 Gold"). Format numbers with thousands separators: 1,000.
-9. **Bug:** you can't pick up and drag your own items onto the sell box. Allow clicks and drags in the player inventory, and moving the cursor item onto the sell slot, on the shop page. Npc3Screen.Listener currently cancels every click.
-Then regenerate the art, run `./gradlew check`, push both repos, and send Rob a new preview.
+### Rob's first in-game feedback (2026-11-02): done, not yet re-tested in game
+Screenshots: hub https://fast.rawb.tv/sFy1K.png, shop https://fast.rawb.tv/Vg39V.png.
+- **Root cause of the misalignment** (bottom art, portrait, page text all ~2 px left): the name font's space was counted as 4 px in `npc3_font.txt` but draws 3, so with two spaces in "Carl the Kobold" every later glyph sat 2 px short. Fixed in `npc3_art.py` (`name_widths[32] = SPACE`).
+- Portrait mirrored (`ImageOps.mirror` in `portraits()`), so Carl faces the option plaques.
+- Hub ledger: "Your Purse" lists Silver, Gold, Dragon Coins (`PURSE_CURRENCIES`, names via `CURRENCY_NAMES`); "<FirstName>'s Wallet" with its balance and "Gold per Hour: N" from the NPC yml's `wallet.restockAmount` / `restockInterval` (Carl: 1 per 1800 s = 2).
+- Shop: still "Till"; the purse shows gold ("1,288 Gold") and may run up to the till label; all amounts use thousands separators.
+- Drag to sell: on the shop the player's inventory clicks aren't cancelled any more (shift-click still sells; double-click stays blocked so it can't collect shop items). A drag that crosses the sell box sells the whole cursor stack.
+- Not asked for but visible: the vanilla "Inventory" label still draws over the bottom art.
 
 ## Redesign round 3 (2026-11-02, after Rob's screenshot https://fast.rawb.tv/TLhci.png; not yet tested in game)
 Rob: art looked bad, wanted a 3/4 hi-res Carl; name plate misaligned; text "simple and cheap", wanted a different font with a shadow; no NPC talking at all; remove moods.

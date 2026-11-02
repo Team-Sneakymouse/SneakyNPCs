@@ -37,6 +37,7 @@ import org.bukkit.event.player.PlayerQuitEvent
 import org.bukkit.inventory.Inventory
 import org.bukkit.inventory.InventoryHolder
 import org.bukkit.inventory.ItemStack
+import java.util.Locale
 
 /**
  * NPC Screens 3 (/sneakynpcs opengui3): the hub and shop redrawn from the ground up in SneakyRoamin's style. The
@@ -124,10 +125,11 @@ internal class Npc3Screen(
         }
         t.text(Npc3Layout.PANEL_LEFT, 114, if (next != null) "${next.second - rep.toInt()} more to become ${next.first}" else "${firstName()} counts you a confidant", MUTED)
 
-        t.text(Npc3Layout.PANEL_LEFT, 141, "Your purse", GOLD)
+        t.text(Npc3Layout.PANEL_LEFT, 141, "Your Purse", GOLD)
         purseLines().take(3).forEachIndexed { i, line -> t.text(Npc3Layout.PANEL_LEFT, 151 + 9 * i, Npc3Text.fit(line, 74), CREAM) }
-        t.text(93, 141, Npc3Text.fit("${firstName()}'s till", 74), GOLD)
-        tillLines().take(3).forEachIndexed { i, line -> t.text(93, 151 + 9 * i, Npc3Text.fit(line, 74), CREAM) }
+        t.text(93, 141, Npc3Text.fit("${firstName()}'s Wallet", 74), GOLD)
+        val wallet = tillLines().take(2) + listOfNotNull(tillPerHour())
+        wallet.forEachIndexed { i, line -> t.text(93, 151 + 9 * i, Npc3Text.fit(line, 74), CREAM) }
         val last = Npc2Memory.lastPurchase(player, npc.id)
         t.center(88, 181, Npc3Text.fit(if (last != null) "You last bought $last here" else "Your first time at this counter", 154), MUTED)
         return t.build()
@@ -165,7 +167,7 @@ internal class Npc3Screen(
     private fun hubLedgerItems(): Array<ItemStack?> {
         val items = arrayOfNulls<ItemStack>(36)
         val purse = button("Your purse", purseLines().ifEmpty { listOf("Coins on hand pay first") })
-        val till = button("${config.name}'s till", tillLines().ifEmpty { listOf("Empty") })
+        val till = button("${firstName()}'s wallet", tillLines().ifEmpty { listOf("Empty") } + listOfNotNull(tillPerHour()))
         for (row in 0..2) {
             for (col in 0..3) items[row * 9 + col] = purse
             for (col in 5..8) items[row * 9 + col] = till
@@ -174,15 +176,29 @@ internal class Npc3Screen(
         return items
     }
 
-    private fun purseLines(): List<String> = shop?.bankDisplayCurrencyIds.orEmpty().mapNotNull { id ->
-        val currency = plugin.currencyGraphService.getCurrency(id) ?: return@mapNotNull null
-        "${ShopMessageFormatter.formatCurrencyId(currency.id)}: ${formatBankDisplayAmount(plugin.balanceService.getBankCurrencyUnits(player, currency))}"
+    /** The player's bank balance of [id], or null if that currency doesn't exist. */
+    private fun bankBalance(id: String): Long? {
+        val currency = plugin.currencyGraphService.getCurrency(id) ?: return null
+        return plugin.balanceService.getBankCurrencyUnits(player, currency)
+    }
+
+    private fun purseLines(): List<String> = PURSE_CURRENCIES.mapNotNull { id ->
+        bankBalance(id)?.let { "${currencyName(id)}: ${formatBankDisplayAmount(it)}" }
     }
 
     private fun tillLines(): List<String> {
         val playerData = plugin.persistenceManager.dataCache[player.uniqueId] ?: return emptyList()
         val wallet = plugin.npcWalletService.getOrCreateRestockedWallet(playerData, npc)
-        return wallet.balances.toSortedMap().map { (id, amount) -> "${ShopMessageFormatter.formatCurrencyId(id)}: $amount" }
+        return wallet.balances.toSortedMap().map { (id, amount) -> "${currencyName(id)}: ${formatBankDisplayAmount(amount)}" }
+    }
+
+    /** "Gold per Hour: 2", from the NPC's wallet restock (restockAmount every restockInterval seconds) */
+    private fun tillPerHour(): String? {
+        val wallet = npc.wallet
+        if (wallet.restockAmount <= 0L || wallet.restockIntervalSeconds <= 0L) return null
+        val perHour = wallet.restockAmount * 3600.0 / wallet.restockIntervalSeconds
+        val amount = if (perHour % 1.0 == 0.0) formatBankDisplayAmount(perHour.toLong()) else "%,.1f".format(Locale.US, perHour)
+        return "${currencyName(wallet.currencyId)} per Hour: $amount"
     }
 
     // --- the shop: offers on the shelf, purse and till, back, pages and the sell box; the player's own items below
@@ -202,17 +218,18 @@ internal class Npc3Screen(
         t.right(Npc3Layout.RIGHT, 6, if (offers.isEmpty()) "Nothing for sale" else "Wares", MUTED)
         t.art(Npc3Layout.SHOP_BOTTOM, 0)
 
-        val purse = purseLines().firstOrNull()?.let(::amountFirst) ?: "-"
+        val purse = bankBalance(PURSE_DEFAULT)?.let { "${formatBankDisplayAmount(it)} ${currencyName(PURSE_DEFAULT)}" } ?: "-"
         val till = tillLines().firstOrNull()?.let(::amountFirst) ?: "-"
         val left = Npc3Layout.PANEL_LEFT
         t.text(left, 94, "Purse", GOLD)
         val purseX = left + Npc3Text.width("Purse") + 4
-        val tillW = Npc3Text.width("Till") + 4
         val half = (Npc3Layout.PANEL_RIGHT - left) / 2
-        val tillText = Npc3Text.fit(till, half - tillW - 4)
-        t.text(purseX, 94, Npc3Text.fit(purse, half - (purseX - left) - 4), CREAM)
+        val tillText = Npc3Text.fit(till, half - Npc3Text.width("Till") - 8)
+        val tillX = Npc3Layout.PANEL_RIGHT - Npc3Text.width(tillText) - 4 - Npc3Text.width("Till")
+        // the purse may run all the way up to the till's label
+        t.text(purseX, 94, Npc3Text.fit(purse, tillX - 6 - purseX), CREAM)
         t.right(Npc3Layout.PANEL_RIGHT, 94, tillText, CREAM)
-        t.right(Npc3Layout.PANEL_RIGHT - Npc3Text.width(tillText) - 4, 94, "Till", GOLD)
+        t.text(tillX, 94, "Till", GOLD)
 
         t.center(70, 112, "${shopPage + 1} / ${pageCount(offers.size)}", CREAM)
         t.right(147, 112, "Sell", GOLD)
@@ -233,7 +250,7 @@ internal class Npc3Screen(
         val playerData = plugin.persistenceManager.dataCache[player.uniqueId]
         shown.forEachIndexed { i, offer -> inv.setItem(PRODUCT_SLOTS[i], displayItem(offer, playerData)) }
         val purse = button("Your purse", purseLines().ifEmpty { listOf("Coins on hand pay first") })
-        val till = button("${config.name}'s till", tillLines().ifEmpty { listOf("Empty") })
+        val till = button("${firstName()}'s till", tillLines().ifEmpty { listOf("Empty") } + listOfNotNull(tillPerHour()))
         for (col in 0..4) inv.setItem(Npc3Layout.slot(col, 4), purse)
         for (col in 5..8) inv.setItem(Npc3Layout.slot(col, 4), till)
         inv.setItem(BACK_SLOT, button("Back"))
@@ -360,8 +377,21 @@ internal class Npc3Screen(
         }
     }
 
+    /** Sells the whole stack on the cursor (after it was dragged onto the sell box). */
+    private fun sellWholeCursor() {
+        val cursor = player.itemOnCursor
+        if (cursor.type.isAir || cursor.amount <= 0) return
+        sell(cursor.clone()) { player.setItemOnCursor(null) }
+    }
+
     companion object Listener : org.bukkit.event.Listener {
         private const val HOTBAR = 27
+        /** the hub purse, in this order (Rob, 2026-11-02); the shop's purse line shows [PURSE_DEFAULT] */
+        private val PURSE_CURRENCIES = listOf("silver", "gold", "dragoncoins")
+        private const val PURSE_DEFAULT = "gold"
+        private val CURRENCY_NAMES = mapOf("dragoncoins" to "Dragon Coins")
+
+        private fun currencyName(id: String) = CURRENCY_NAMES[id] ?: ShopMessageFormatter.formatCurrencyId(id)
         private val PRODUCT_SLOTS = (0 until 36).toList()
         private val BACK_SLOT = Npc3Layout.slot(0, 5)
         private val PREV_SLOT = Npc3Layout.slot(2, 5)
@@ -406,6 +436,11 @@ internal class Npc3Screen(
         @EventHandler
         fun onClick(event: InventoryClickEvent) {
             val screen = event.inventory.holder as? Npc3Screen ?: return
+            // on the shop the player's own inventory works as normal (pick up, place, swap), so they can carry an item
+            // to the sell box; shift-click sells and double-click could collect shop items, so those stay ours
+            if (screen.page == Page.SHOP && event.clickedInventory != null && event.rawSlot >= event.view.topInventory.size &&
+                !event.isShiftClick && event.click != ClickType.DOUBLE_CLICK && event.action != InventoryAction.COLLECT_TO_CURSOR
+            ) return
             event.isCancelled = true
             if (event.click == ClickType.DOUBLE_CLICK || event.action == InventoryAction.COLLECT_TO_CURSOR) return
             screen.onClick(event)
@@ -415,6 +450,12 @@ internal class Npc3Screen(
         fun onDrag(event: InventoryDragEvent) {
             val screen = event.inventory.holder as? Npc3Screen ?: return
             if (screen.page == Page.HUB || event.rawSlots.any { it < event.view.topInventory.size }) event.isCancelled = true
+            // a drag that crosses the sell box sells the whole stack
+            if (screen.page == Page.SHOP && SELL_SLOT in event.rawSlots) {
+                Bukkit.getScheduler().runTask(screen.plugin, Runnable {
+                    if (screen.player.openInventory.topInventory.holder === screen) screen.sellWholeCursor()
+                })
+            }
         }
 
         @EventHandler

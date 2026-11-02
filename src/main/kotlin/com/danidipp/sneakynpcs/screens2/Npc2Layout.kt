@@ -2,6 +2,7 @@ package com.danidipp.sneakynpcs.screens2
 
 import net.kyori.adventure.key.Key
 import net.kyori.adventure.text.Component
+import net.kyori.adventure.text.format.NamedTextColor
 import net.kyori.adventure.text.format.TextColor
 
 /**
@@ -14,7 +15,8 @@ internal object Npc2Layout {
     const val PORTRAIT_X = 8
     const val PORTRAIT_W = 52
     const val TITLE_X = 8
-    val TEXT_TOPS = -12..140
+    /** a text font's ascent (13 - top) can't exceed its height (8), so no line starts above y 5 */
+    val TEXT_TOPS = 5..140
 
     val FRAME_FONT: Key = Key.key("lom", "npc2/frame")
     val INK: TextColor = TextColor.color(0x462C18)
@@ -133,5 +135,6 @@ internal class Npc2Title {
     fun centered(centre: Int, top: Int, text: String, color: TextColor = Npc2Layout.INK) =
         text(centre - Npc2Text.width(text) / 2, top, text, color)
 
-    fun build(): Component = Component.text().append(parts).build()
+    /** white, so the art isn't tinted by the title's default grey (0x404040) */
+    fun build(): Component = Component.text().color(NamedTextColor.WHITE).append(parts).build()
 }

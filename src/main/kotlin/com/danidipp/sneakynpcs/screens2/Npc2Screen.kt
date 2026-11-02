@@ -89,7 +89,7 @@ internal class Npc2Screen(
     private fun frame(char: Char) = Npc2Title()
         .glyph(Npc2Layout.FRAME_X, char, Npc2Layout.FRAME_W)
         .glyph(Npc2Layout.PORTRAIT_X, config.portrait, Npc2Layout.PORTRAIT_W)
-        .centered(88, -1, config.name, Npc2Layout.CREAM)
+        .centered(88, 5, config.name, Npc2Layout.CREAM)
 
     private fun hubTitle(): Component {
         val title = frame(config.district.hub)

@@ -13,8 +13,9 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
-FRAME_X, FRAME_Y, FRAME_W, FRAME_H = -20, -12, 216, 150
-TEXT_TOPS = range(-12, 141)  # one font per text line top, lom:npc2/text_<top> (n<top> for negatives)
+FRAME_X, FRAME_Y, FRAME_W, FRAME_H = -20, -12, 216, 140  # ends at y 128, so the "Inventory" label sits below it
+# one font per text line top, lom:npc2/text_<top>; a bitmap font's ascent (13 - top) can't exceed its height (8)
+TEXT_TOPS = range(5, 141)
 
 # Goat Town: pastoral wood, parchment and meadow green
 WOOD = [(74, 46, 24), (104, 66, 34), (134, 88, 46), (166, 114, 62)]
@@ -92,17 +93,16 @@ class Canvas:
         self.textured(x0, y0, x1, y1, WOOD, grain=True)
         self.bevel(x0, y0, x1, y1, WOOD[3], WOOD[0])
         self.bevel(x0 + 1, y0 + 1, x1 - 1, y1 - 1, WOOD[2], WOOD[0])
-        # the page
-        self.panel(x0 + 6, 15, x1 - 6, y1 - 6)
-        # meadow hem along the bottom of the page
+        # the page, down to just below the bottom slot row
+        self.panel(x0 + 6, 15, x1 - 6, y1 - 2)
+        # meadow hem along the top of the page
         for x in range(x0 + 7, x1 - 7):
-            h = 2 + (1 if (x * 7) % 5 == 0 else 0)
-            for y in range(y1 - 7 - h, y1 - 7):
+            for y in (15, 16):
                 self.img.putpixel(self.px(x, y), GREEN[(x + y) % 3] + (255,))
-        # header plaque for the name, horns on its ends
-        self.plaque(x0 + 30, y0 + 3, x1 - 30, 15)
-        self.horn(x0 + 22, y0 + 8, False)
-        self.horn(x1 - 23, y0 + 8, True)
+        # header plaque for the name (text top 5), horns on its ends
+        self.plaque(x0 + 30, 0, x1 - 30, 15)
+        self.horn(x0 + 22, 6, False)
+        self.horn(x1 - 23, 6, True)
 
     def portrait_window(self):
         x0, y0 = cell(0, 0)

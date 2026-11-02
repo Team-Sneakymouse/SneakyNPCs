@@ -24,15 +24,15 @@ A reimagined NPC menu system that runs beside the old `NPCGui` menus, which stay
 
 ## Decisions and why
 - **Title-font rendering instead of Spellbook2's item-model glyphs**: far less machinery, and the pack already does GUI fonts this way (dragonband_gui). The cost: changing text means reopening the inventory, which recentres the mouse. So text that changes on every click (balances) lives in tooltips, and the title only changes on page/screen changes or after a buy/sell.
-- Fonts: `lom:npc2/frame` (space chars `+i` = +2^i and `+i` = -2^i; frames `` hub and `` shop; portrait ``), and `lom:npc2/text_<top>` / `text_n<top>` for each line top from -12 to 140 (vanilla `ascii.png`, ascent 13 - top).
+- Fonts: `lom:npc2/frame` (space chars `+i` = +2^i and `+i` = -2^i; frames `` hub and `` shop; portrait ``), and `lom:npc2/text_<top>` for each line top from 5 to 140 (vanilla `ascii.png`, ascent 13 - top).
 - `npc2/` folder kept apart from `npc/` (Rob). Districts are frames (Rob); only Goat Town exists so far.
 - Commits go straight to `main` (Rob: "dani wont mind").
 
 ## Gotchas
+- First in-game test (2026-11-02) found: the title's default grey (0x404040) tinted the art to 25% (fixed: title root is white); text fonts with top < 5 have ascent > height and don't load, so the name showed as boxes and every later text shifted right (fixed: tops 5..140, name plaque moved to y 0..15); the frame now ends at y 128 so the "Inventory" label is clear.
 - Layout numbers live in both `Npc2Layout.kt` and `tools/npc2_pack.py`; change them together.
 - Text fonts only draw ASCII 32–126 (anything else becomes `?`). Widths are the vanilla table in `Npc2Text`.
 - The hub art always draws 3 option plaques; with 2 options the third is blank.
-- The "Inventory" label overlaps the frame's meadow strip (it can't be hidden).
 - Build: `./gradlew check` works in this repo on Windows (it has no publishPreflight task).
 - Previews (`tools/npc2_pack.py <assets/lom> <preview-dir>`) draw the frames only; the in-game text uses the client font.
 

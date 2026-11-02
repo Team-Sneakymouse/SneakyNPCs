@@ -16,6 +16,8 @@ from PIL import Image, ImageDraw
 FRAME_X, FRAME_Y, FRAME_W, FRAME_H = -20, -12, 216, 140  # ends at y 128, so the "Inventory" label sits below it
 # one font per text line top, lom:npc2/text_<top>; a bitmap font's ascent (13 - top) can't exceed its height (8)
 TEXT_TOPS = range(5, 141)
+# the hub's reputation bar: REP_SEGMENTS cells of 4 x 8 (advance 5) from REP_BAR_X, top REP_BAR_TOP
+REP_BAR_X, REP_BAR_TOP, REP_SEGMENTS = 86, 112, 16
 
 # Goat Town: pastoral wood, parchment and meadow green
 WOOD = [(74, 46, 24), (104, 66, 34), (134, 88, 46), (166, 114, 62)]
@@ -115,20 +117,42 @@ def hub():
     cv = Canvas()
     cv.frame()
     cv.portrait_window()
-    # speech bubble, tail toward the portrait
-    bx0, by0 = cell(3, 0)
-    cv.panel(bx0 + 3, by0 + 1, 170, by0 + 53, PAPER[1:])
+    # title ribbon beside the portrait (text top 22), a meadow tab on each end
+    x, y = cell(3, 0)
+    cv.panel(x + 1, y + 1, 169, y + 17, PAPER[1:])
+    for ex in (x + 1, 166):
+        cv.rect(ex, y + 3, ex + 3, y + 15, GREEN[1])
+    # four option plaques
     for i in range(4):
-        cv.rect(bx0 + 3 - i, by0 + 10 + i, bx0 + 4, by0 + 11 + i, PAPER[2])
-    # three option plaques
-    for i in range(3):
-        x, y = cell(3, 3 + i)
+        x, y = cell(3, 1 + i)
         cv.plaque(x + 1, y + 1, 169, y + 17)
-    # reputation panel
+    # reputation row: "Rep" label, then a sunken track the bar glyphs fill
+    x, y = cell(3, 5)
+    cv.panel(x + 1, y + 1, 169, y + 17, PAPER[1:])
+    tx0, tx1 = REP_BAR_X - 2, REP_BAR_X + 5 * REP_SEGMENTS + 1
+    cv.rect(tx0, REP_BAR_TOP - 2, tx1, REP_BAR_TOP + 8 + 2, WOOD[0])
+    cv.rect(tx0 + 1, REP_BAR_TOP - 1, tx1 - 1, REP_BAR_TOP + 8 + 1, (52, 32, 16))
+    # standing panel under the portrait
     x, y = cell(0, 3)
     cv.panel(x, y + 1, x + 54, y + 54, PAPER)
     cv.rect(x + 4, y + 13, x + 50, y + 14, WOOD[1])
     return cv.img
+
+
+def rep_segment(filled):
+    """One 4 x 8 cell of the reputation bar."""
+    img = Image.new("RGBA", (4, 8), (0, 0, 0, 0))
+    if filled:
+        for y in range(8):
+            shade = GREEN[2] if y < 2 else GREEN[1] if y < 6 else GREEN[0]
+            for x in range(4):
+                img.putpixel((x, y), shade + (255,))
+        img.putpixel((0, 0), (190, 220, 130, 255))
+    else:
+        for y in range(8):
+            for x in range(4):
+                img.putpixel((x, y), (84, 56, 30, 255) if y > 0 else (64, 40, 20, 255))
+    return img
 
 
 def shop():
@@ -174,6 +198,58 @@ def portrait():
     return img
 
 
+# Carl the Kobold, from his skin: charcoal scales, navy bandana, black eyes, two fangs, navy shirt under a grey vest.
+# One letter per skin pixel, drawn 3 x 3.
+CARL_PALETTE = {
+    "s": (47, 43, 38), "S": (38, 35, 32), "d": (21, 19, 18), "h": (66, 60, 54),
+    "b": (20, 23, 35), "B": (30, 36, 53), "e": (0, 0, 0), "w": (226, 224, 218),
+    "n": (20, 23, 34), "N": (12, 16, 30), "g": (82, 83, 87), "G": (65, 66, 68),
+}
+CARL = [
+    " hs    sh ",
+    " ssssssss ",
+    " bBbBbBbB ",
+    " BbBbbBbB ",
+    " ssSssSss ",
+    " sewsSews ",
+    " ssSssSss ",
+    " SsddddsS ",
+    " swddddws ",
+    " sswddwss ",
+]
+CARL_BODY = [
+    "SsngNnngnsSs",
+    "ssggnnnnggss",
+    "sSnggnnggnSs",
+    "ssnnggggnnss",
+    "sSnnngGnnnSs",
+    "ssnnnggnnnss",
+    "sSnnnnnnnnSs",
+]
+
+
+def portrait_carl():
+    img = Image.new("RGBA", (52, 52), (150, 196, 226, 255))
+    d = ImageDraw.Draw(img)
+    for y in range(0, 14):
+        d.line([(0, y), (51, y)], fill=(124 + y * 2, 176 + y, 216))
+    d.rectangle([0, 34, 51, 51], fill=GREEN[1])
+    d.polygon([(0, 36), (14, 28), (30, 34), (51, 26), (51, 38), (0, 40)], fill=GREEN[2])
+
+    def block(grid, ox, oy):
+        for r, row in enumerate(grid):
+            for c, ch in enumerate(row):
+                if ch != " ":
+                    d.rectangle([ox + 3 * c, oy + 3 * r, ox + 3 * c + 2, oy + 3 * r + 2], fill=CARL_PALETTE[ch])
+
+    block(CARL_BODY, 8, 33)
+    block(CARL, 11, 3)
+    # a glint in each eye
+    for x in (17, 32):
+        img.putpixel((x, 18), (120, 120, 140, 255))
+    return img
+
+
 # vanilla ascii.png's characters, rows 2-7 (the rest left blank)
 ASCII_ROWS = ["\u0000" * 16] * 2 + [
     " !\"#$%&'()*+,-./",
@@ -187,7 +263,8 @@ ASCII_ROWS = ["\u0000" * 16] * 2 + [
 SPACE_POS = {chr(0xE100 + i): 1 << i for i in range(9)}
 SPACE_NEG = {chr(0xE120 + i): -(1 << i) for i in range(9)}
 FRAMES = {"": "npc2/goattown_hub.png", "": "npc2/goattown_shop.png"}
-PORTRAITS = {"": "npc2/portrait_default.png"}
+PORTRAITS = {"": "npc2/portrait_default.png", "": "npc2/portrait_carl.png"}
+REP_CHARS = {"": True, "": False}
 
 
 def text_font_name(top):
@@ -200,12 +277,16 @@ def write(out):
     hub().save(tex / "goattown_hub.png")
     shop().save(tex / "goattown_shop.png")
     portrait().save(tex / "portrait_default.png")
+    portrait_carl().save(tex / "portrait_carl.png")
+    for c, filled in REP_CHARS.items():
+        rep_segment(filled).save(tex / f"rep_{'full' if filled else 'empty'}.png")
     fonts = out / "font/npc2"
     fonts.mkdir(parents=True, exist_ok=True)
     px, py = cell(0, 0)
     providers = [{"type": "space", "advances": {**SPACE_POS, **SPACE_NEG}}]
     providers += [{"type": "bitmap", "file": f"lom:font/{f}", "ascent": 13 - FRAME_Y, "height": FRAME_H, "chars": [c]} for c, f in FRAMES.items()]
     providers += [{"type": "bitmap", "file": f"lom:font/{f}", "ascent": 13 - (py + 1), "height": 52, "chars": [c]} for c, f in PORTRAITS.items()]
+    providers += [{"type": "bitmap", "file": f"lom:font/npc2/rep_{'full' if filled else 'empty'}.png", "ascent": 13 - REP_BAR_TOP, "height": 8, "chars": [c]} for c, filled in REP_CHARS.items()]
     (fonts / "frame.json").write_text(json.dumps({"providers": providers}, indent=1, ensure_ascii=True) + "\n")
     for top in TEXT_TOPS:
         font = {"providers": [{"type": "space", "advances": {" ": 4}}, {"type": "bitmap", "file": "minecraft:font/ascii.png", "ascent": 13 - top, "height": 8, "chars": ASCII_ROWS}]}
@@ -222,8 +303,7 @@ def preview(out, dest):
         ox, oy = 40, 24
         d.rectangle([ox, oy, ox + 175, oy + 221], fill=(198, 198, 198, 255))
         canvas.alpha_composite(frame, (ox + FRAME_X, oy + FRAME_Y))
-        if name.endswith("hub") or name.endswith("shop"):
-            canvas.alpha_composite(Image.open(out / "textures/font/npc2/portrait_default.png"), (ox + 8, oy + 18))
+        canvas.alpha_composite(Image.open(out / "textures/font/npc2/portrait_carl.png"), (ox + 8, oy + 18))
         canvas = canvas.resize((canvas.width * 3, canvas.height * 3), Image.NEAREST)
         canvas.save(dest / f"{name}_preview.png")
 

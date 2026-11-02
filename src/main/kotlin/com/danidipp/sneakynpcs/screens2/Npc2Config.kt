@@ -7,6 +7,8 @@ import java.io.File
 /** What a screen's option row does. */
 internal enum class Npc2Option(val label: String) {
     SHOP("Browse wares"),
+    SELL("Sell goods"),
+    TALK("Have a chat"),
     LEAVE("Farewell");
 
     companion object {
@@ -22,6 +24,8 @@ internal data class Npc2Config(
     val id: String,
     val npcId: String,
     val name: String,
+    /** the line under the name, e.g. "Goat Town Merchant" (none if blank) */
+    val title: String,
     val district: Npc2District,
     val portrait: Char,
     val options: List<Npc2Option>,
@@ -30,6 +34,8 @@ internal data class Npc2Config(
     /** lines for someone who's bought here before: {name} is their character, {item} what they last bought */
     val returning: List<String>,
     val shopLines: List<String>,
+    /** what Have a chat says (in chat) after the greeting; {name} is their character */
+    val talk: List<String>,
     /** price multipliers by mood key, over Npc2Mood's defaults */
     val moodPrices: Map<String, Double>,
     val warnings: List<String>,
@@ -57,9 +63,9 @@ internal data class Npc2Config(
             val district = Npc2District.of(districtName) ?: Npc2District.GOATTOWN.also {
                 if (districtName != null) warnings.add("Unknown district '$districtName', using goattown")
             }
-            val options = (yaml.getStringList("options").ifEmpty { listOf("shop", "leave") }).mapNotNull { name ->
+            val options = (yaml.getStringList("options").ifEmpty { listOf("shop", "sell", "talk", "leave") }).mapNotNull { name ->
                 Npc2Option.of(name) ?: null.also { warnings.add("Unknown option '$name'") }
-            }.take(3)
+            }.take(4)
             val greetings = yaml.getConfigurationSection("greetings")?.let { section ->
                 section.getKeys(false).associateWith { section.getStringList(it) }.filterValues { it.isNotEmpty() }
             } ?: emptyMap()
@@ -70,12 +76,14 @@ internal data class Npc2Config(
                 id = id,
                 npcId = yaml.getString("npc") ?: id,
                 name = yaml.getString("name") ?: id,
+                title = yaml.getString("title") ?: "",
                 district = district,
                 portrait = Npc2Portraits.of(yaml.getString("portrait")),
                 options = options,
                 greetings = greetings,
                 returning = yaml.getStringList("returning"),
                 shopLines = yaml.getStringList("shopLines"),
+                talk = yaml.getStringList("talk"),
                 moodPrices = moodPrices,
                 warnings = warnings,
             )

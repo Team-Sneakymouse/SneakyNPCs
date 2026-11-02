@@ -17,6 +17,11 @@ internal object Npc2Layout {
     const val TITLE_X = 8
     /** a text font's ascent (13 - top) can't exceed its height (8), so no line starts above y 5 */
     val TEXT_TOPS = 5..140
+    /** the hub's reputation bar: REP_SEGMENTS glyphs 4px wide (advance 5) from REP_BAR_X */
+    const val REP_BAR_X = 86
+    const val REP_SEGMENTS = 16
+    const val REP_FULL = ''
+    const val REP_EMPTY = ''
 
     val FRAME_FONT: Key = Key.key("lom", "npc2/frame")
     val INK: TextColor = TextColor.color(0x462C18)
@@ -40,7 +45,7 @@ internal enum class Npc2District(val hub: Char, val shop: Char) {
 }
 
 internal object Npc2Portraits {
-    private val chars = mapOf("default" to '')
+    private val chars = mapOf("default" to '', "carl" to '')
     fun of(name: String?): Char = chars[name?.lowercase()] ?: chars.getValue("default")
 }
 

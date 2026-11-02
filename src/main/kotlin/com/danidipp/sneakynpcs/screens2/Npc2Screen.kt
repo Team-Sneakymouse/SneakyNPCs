@@ -50,6 +50,7 @@ internal class Npc2Screen(
     /** set while one screen replaces another, so the old one's close isn't taken as Esc */
     private var switching = false
     private var speech: String? = null
+    private var greeted = false
     private val mood = Npc2Mood.of(player.world.time, player.world.hasStorm())
     private val greeting = Npc2Memory.greeting(player, config, mood)
     private val shop: ShopMenu? = npc.allMenus.filterIsInstance<ShopMenu>().firstOrNull()
@@ -84,7 +85,7 @@ internal class Npc2Screen(
         switching = false
     }
 
-    // --- the hub: portrait, greeting, standing and up to three options
+    // --- the hub: portrait, title, standing, reputation bar and up to four options (no speech: Have a chat talks in chat)
 
     private fun frame(char: Char) = Npc2Title()
         .glyph(Npc2Layout.FRAME_X, char, Npc2Layout.FRAME_W)
@@ -93,16 +94,22 @@ internal class Npc2Screen(
 
     private fun hubTitle(): Component {
         val title = frame(config.district.hub)
-        Npc2Text.wrap(greeting, 98, 5).forEachIndexed { i, line -> title.text(68, 21 + 10 * i, line) }
-        config.options.forEachIndexed { i, option -> title.centered(115, Npc2Layout.cellY(3 + i) + 5, option.label, Npc2Layout.CREAM) }
-        val rep = plugin.persistenceManager.dataCache[player.uniqueId]?.getReputation(npc.id) ?: 0.0
+        if (config.title.isNotBlank()) title.centered(115, 22, Npc2Text.wrap(config.title, 100, 1).first(), Npc2Layout.INK)
+        config.options.forEachIndexed { i, option -> title.centered(115, Npc2Layout.cellY(1 + i) + 5, option.label, Npc2Layout.CREAM) }
+        val rep = reputation()
+        title.text(66, 112, "Rep")
+        val filled = repSegments(rep)
+        for (i in 0 until Npc2Layout.REP_SEGMENTS) {
+            title.glyph(Npc2Layout.REP_BAR_X + 5 * i, if (i < filled) Npc2Layout.REP_FULL else Npc2Layout.REP_EMPTY, 4)
+        }
         title.centered(34, 75, "Standing")
-        title.centered(34, 88, standing(rep))
-        title.centered(34, 98, "Rep ${rep.toInt()}")
-        title.centered(34, if (priceNote() == null) 112 else 107, mood.label, Npc2Layout.GREEN)
-        priceNote()?.let { title.centered(34, 117, it, Npc2Layout.GREEN) }
+        title.centered(34, 90, standing(rep))
+        title.centered(34, if (priceNote() == null) 106 else 101, mood.label, Npc2Layout.GREEN)
+        priceNote()?.let { title.centered(34, 112, it, Npc2Layout.GREEN) }
         return title.build()
     }
+
+    private fun reputation() = plugin.persistenceManager.dataCache[player.uniqueId]?.getReputation(npc.id) ?: 0.0
 
     /** "-10%" / "+10%" under the mood while it changes prices (the panel is only 54px wide) */
     private fun priceNote(): String? {
@@ -117,8 +124,21 @@ internal class Npc2Screen(
     private fun fillHub(inv: Inventory) {
         config.options.forEachIndexed { i, option ->
             val label = button(option.label)
-            for (column in 3..8) inv.setItem(Npc2Layout.slot(column, 3 + i), label)
+            for (column in 3..8) inv.setItem(Npc2Layout.slot(column, 1 + i), label)
         }
+        val rep = reputation()
+        val next = nextStanding(rep)
+        val repItem = button("Reputation: ${rep.toInt()}", listOfNotNull(standing(rep), next?.let { "${it.second - rep.toInt()} more to ${it.first}" }))
+        for (column in 3..8) inv.setItem(Npc2Layout.slot(column, 5), repItem)
+    }
+
+    /** Have a chat: the greeting first, then the NPC's talk lines, said in chat */
+    private fun chat() {
+        val line = if (!greeted) greeting else (config.talk.randomOrNull() ?: config.greetingsFor(mood).random())
+            .replace("{name}", Npc2Memory.characterName(player))
+        greeted = true
+        player.playSound(player.location, "lom:ui.button.click", 1f, 1f)
+        player.sendMessage(Component.text("${config.name}: ", NamedTextColor.GOLD).append(Component.text(line, NamedTextColor.WHITE)))
     }
 
     // --- the shop: the NPC's offers (the old shop's, through the same services), purse, till, sell box and pages
@@ -248,9 +268,9 @@ internal class Npc2Screen(
         player.sendMessage(plugin.prefix.append(Component.text(message, NamedTextColor.RED)))
     }
 
-    private fun navigate(next: Page) {
+    private fun navigate(next: Page, line: String? = null) {
         player.playSound(player.location, "lom:ui.button.click", 1f, 1f)
-        speech = null
+        speech = line
         show(next)
     }
 
@@ -269,9 +289,11 @@ internal class Npc2Screen(
         }
         when (page) {
             Page.HUB -> {
-                val option = config.options.getOrNull(event.slot / 9 - 3).takeIf { event.slot % 9 >= 3 } ?: return
+                val option = config.options.getOrNull(event.slot / 9 - 1).takeIf { event.slot % 9 >= 3 } ?: return
                 when (option) {
                     Npc2Option.SHOP -> if (shop != null) navigate(Page.SHOP) else fail("${config.name} has nothing to sell.")
+                    Npc2Option.SELL -> if (shop != null) navigate(Page.SHOP, "Drop goods in the gold box.") else fail("${config.name} isn't buying.")
+                    Npc2Option.TALK -> chat()
                     Npc2Option.LEAVE -> player.closeInventory()
                 }
             }
@@ -320,10 +342,20 @@ internal class Npc2Screen(
         private fun itemName(stack: ItemStack): String =
             PlainTextComponentSerializer.plainText().serialize(stack.effectiveName())
 
+        private val STANDINGS = listOf("Stranger" to 0, "Familiar" to 10, "Friend" to 50, "Confidant" to 100)
+
+        /** the bar fills over 0..100 (Confidant), at least one cell once there's any reputation */
+        private fun repSegments(rep: Double): Int {
+            if (rep <= 0) return 0
+            return (rep / 100.0 * Npc2Layout.REP_SEGMENTS).toInt().coerceIn(1, Npc2Layout.REP_SEGMENTS)
+        }
+
+        private fun nextStanding(rep: Double) = STANDINGS.firstOrNull { it.second > rep }
+
         private fun standing(rep: Double) = when {
             rep < 0 -> "Wary"
             rep < 10 -> "Stranger"
-            rep < 50 -> "Acquaintance"
+            rep < 50 -> "Familiar"
             rep < 100 -> "Friend"
             else -> "Confidant"
         }

@@ -12,13 +12,14 @@ A reimagined NPC menu system that runs beside the old `NPCGui` menus, which stay
 - Not started (Rob's picks, in rough priority): haggling needle minigame, friendship hearts + gifts dropped on the portrait, gossip (rep leaking within a district), animated portraits, the 3D offer on a counter, page-flip catalog with ribbon categories, phone/computer contacts. Also: more district frames, real per-NPC portraits, quest/tailor/taxes screens.
 - Rejected by Rob: typewriter text, live market, shoplifting, daily deal, dialogue trees, diaries, letters, receipts, jobs board, heist/casino, haunted, caravans, player-run shops, strikes, birthdays.
 
-## NEXT: redesign round 2 (Rob, 2026-11-02, after the second in-game test)
-Rob's screenshots of the fixed build: https://fast.rawb.tv/xY4zB.png and https://fast.rawb.tv/425Yf.png (download with curl into the scratchpad, then look). Carl reference art to adapt into the portrait: https://fast.rawb.tv/r3ie3.png. His asks, in his words:
-1. "there needs to be 4 buttons the player can click like browse wares": 4 option plaques on the hub (art + `Npc2Option` + `options:` take(4)). Pick 2 sensible new options (e.g. talk/rumours, sell) or make them configurable; keep shop and leave.
-2. "remove the dialogue box completely. i just want the buttons": drop the speech bubble and greeting text from the hub (the greeting/returning/mood text may still go in chat or a tooltip, or nowhere; ask only if it really matters). Use the freed space for the buttons.
-3. "its missing the reputation bar and the title of the character as well in the design": a drawn rep bar (fill from reputation, e.g. a font strip of N segments) and a character title line (e.g. `title: Goat Town Merchant` in npc2/<id>.yml) under or near the name.
-4. Portrait: adapt Carl's art (the r3ie3 link) into a 52x52 `portrait_carl` (add to `Npc2Portraits`, set `portrait: carl` in CarlTheKobold.yml; the server's data copy in `~/dev-main/SneakyNPCs/npc2/` must be edited too, since the jar only writes it when the folder is missing).
-Also check the screenshots for remaining frame/text offsets. Then re-run tools/npc2_pack.py, commit both repos to main, and send Rob preview renders.
+## Redesign round 2 (done 2026-11-02, not yet tested in game)
+From Rob's second test (screenshots https://fast.rawb.tv/xY4zB.png, https://fast.rawb.tv/425Yf.png; Carl ref https://fast.rawb.tv/r3ie3.png):
+- **No speech bubble on the hub.** Right column: a title ribbon (`title:` in npc2/<id>.yml, row 0, text top 22), **4 option plaques** (rows 1-4), and a **reputation bar** (row 5: "Rep" + 16 glyph cells `` full / `` empty from x 86, top 112, filling over 0..100; hovering row 5 shows the number and what's needed for the next standing).
+- Options: `shop`, `sell` (opens the shop with "Drop goods in the gold box."), `talk` ("Have a chat": says the greeting in chat first, then `talk:` lines), `leave`. Default `[shop, sell, talk, leave]`.
+- Under the portrait: Standing heading, standing (Acquaintance renamed **Familiar** so it fits 54px), mood, mood price note.
+- **Carl's portrait** `portrait: carl` (``, drawn from his skin as a 3px-per-skin-pixel grid in `npc2_pack.py` `CARL`/`CARL_BODY`). The server's `~/dev-main/SneakyNPCs/npc2/CarlTheKobold.yml` was updated to match.
+- Shop screen unchanged; no frame offsets were visible in the screenshots.
+- Next: Rob tests in game; then his earlier picks (haggling, hearts + gifts, gossip, more districts/portraits).
 
 ## Key files
 - `screens2/Npc2Screen.kt`: holder + listener, hub/shop pages, buy/sell, back/Esc handling.
@@ -40,7 +41,7 @@ Also check the screenshots for remaining frame/text offsets. Then re-run tools/n
 - First in-game test (2026-11-02) found: the title's default grey (0x404040) tinted the art to 25% (fixed: title root is white); text fonts with top < 5 have ascent > height and don't load, so the name showed as boxes and every later text shifted right (fixed: tops 5..140, name plaque moved to y 0..15); the frame now ends at y 128 so the "Inventory" label is clear.
 - Layout numbers live in both `Npc2Layout.kt` and `tools/npc2_pack.py`; change them together.
 - Text fonts only draw ASCII 32–126 (anything else becomes `?`). Widths are the vanilla table in `Npc2Text`.
-- The hub art always draws 3 option plaques; with 2 options the third is blank.
+- The hub art always draws 4 option plaques; unused ones are blank.
 - Build: `./gradlew check` works in this repo on Windows (it has no publishPreflight task).
 - Previews (`tools/npc2_pack.py <assets/lom> <preview-dir>`) draw the frames only; the in-game text uses the client font.
 

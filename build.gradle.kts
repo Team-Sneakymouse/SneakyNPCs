@@ -38,6 +38,8 @@ dependencies {
 	implementation("org.jetbrains.kotlin:kotlin-stdlib:2.3.20")
 	compileOnly("io.papermc.paper:paper-api:26.2.build.121-stable")
 	compileOnly("me.clip:placeholderapi:2.11.5")
+	// NPC Screens 3: hides the player's inventory under the hub art by packets (same as SneakyRoamin)
+	compileOnly("io.netty:netty-transport:4.2.15.Final")
 	compileOnly("io.github.team-sneakymouse:magicspells:2026.10.15-f0a44ae377a3") {
 		isTransitive = false
 	}

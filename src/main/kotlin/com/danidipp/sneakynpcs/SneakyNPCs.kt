@@ -74,6 +74,7 @@ class SneakyNPCs : JavaPlugin() {
         //events
         Bukkit.getServer().pluginManager.registerEvents(NPCGui.GuiListener, this)
         Bukkit.getServer().pluginManager.registerEvents(com.danidipp.sneakynpcs.screens2.Npc2Screen.Listener, this)
+        Bukkit.getServer().pluginManager.registerEvents(com.danidipp.sneakynpcs.screens3.Npc3Screen.Listener, this)
         if (!java.io.File(dataFolder, "npc2").exists()) saveResource("npc2/CarlTheKobold.yml", false)
         Bukkit.getServer().pluginManager.registerEvents(persistenceManager, this)
         Bukkit.getServer().pluginManager.registerEvents(questDebugService, this)

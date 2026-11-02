@@ -3,6 +3,7 @@ package com.danidipp.sneakynpcs
 
 import com.danidipp.sneakynpcs.commands.OpenGUICommand
 import com.danidipp.sneakynpcs.commands.OpenGUI2Command
+import com.danidipp.sneakynpcs.commands.OpenGUI3Command
 import com.danidipp.sneakynpcs.commands.QuestCommand
 import com.danidipp.sneakynpcs.commands.ReputationCommand
 import com.danidipp.sneakynpcs.commands.ReloadCommand
@@ -21,6 +22,7 @@ object SneakNPCCommand {
         root.then(ReloadCommand.createCommand())
         root.then(OpenGUICommand.createCommand())
         root.then(OpenGUI2Command.createCommand())
+        root.then(OpenGUI3Command.createCommand())
         root.then(QuestCommand.createCommand())
         root.then(ReputationCommand.createCommand())
         root.then(WalletCommand.createCommand())

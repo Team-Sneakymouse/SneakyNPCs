@@ -27,6 +27,8 @@ internal data class Npc2Config(
     val title: String,
     val district: Npc2District,
     val portrait: Char,
+    /** the portrait's name in npc2/<id>.yml (Screens 3 has its own portrait glyphs) */
+    val portraitName: String,
     val options: List<Npc2Option>,
     val warnings: List<String>,
 ) {
@@ -59,6 +61,7 @@ internal data class Npc2Config(
                 title = yaml.getString("title") ?: "",
                 district = district,
                 portrait = Npc2Portraits.of(yaml.getString("portrait")),
+                portraitName = yaml.getString("portrait")?.lowercase() ?: "default",
                 options = options,
                 warnings = warnings,
             )

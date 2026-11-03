@@ -3,8 +3,8 @@
 ## What it is
 Reimagined NPC menus that run beside the old `NPCGui` menus, which stay untouched until Rob swaps them. Each screen is a 6-row chest whose **title draws the whole window** as font glyphs: art, portrait and live text. **opengui3** is the current one and copies SneakyRoamin's `/roamin` technique: smooth 4x art drawn as two title glyphs (top 128 px, bottom 100 px) covering both the chest and the player inventory, with items sitting in drawn sockets. opengui2 (`screens2/`) is the earlier take; Rob called it "cheap" and it stays as it is.
 
-## Status (2026-11-02)
-None of opengui3 is tested in game since round 1. Rob restarts the dev server; the pack rebuilds via the "Build and activate dev candidate" workflow on push.
+## Status (2026-11-03)
+**Blocked by MythicHUD (new on dev 2026-11-03).** Rob's re-test (https://fast.rawb.tv/aTweE.png): the big art glyphs (window halves, portrait) render as missing-glyph boxes, so the pen drifts and the text lands left of the window. `/roamin` breaks the same way (https://fast.rawb.tv/4mlOB.png). Rob confirmed MythicHUD is the cause. Ruled out: the live dev pack (`packs/dev/daa31743…zip`, URL in `~/dev-main/CraftEngine/config.yml`) holds valid `lom:npc3/art` + textures; plugin glyph codes match (`..`, `+`); MythicHUD's `text.vsh` shader only moves glyphs at huge y offsets. Prime suspect: its packet rewriting, `disable-netty-injection: false` in craftengine-resources `mythichud/config.yml`. Proposed test: set it to `true` and push (one line; Rob hadn't said yes yet, and `mythichud/` belongs to the SneakyHud/MythicHUD work). Rounds 1-3 visuals are still unverified behind this. Rob restarts the dev server; the pack rebuilds via the "Build and activate dev candidate" workflow on push.
 - **Hub**: name/title header; mirrored 3/4 Carl portrait in one brass frame with the standing under it; 4 option sockets (shop, sell, leave; the 4th is blank on purpose, "for future design use"); reputation `N / 100` with a gold bar in a track (fills over 0..100); an iron strap at y 126.5-138; a ledger over the hidden player inventory (`Npc3Mask`):
   - "Your Wallet" with Silver (light grey), Gold (gold) and Dragon Coins (light red), via `COIN_COLOURS`;
   - "<FirstName>'s Wallet" as a green 24-segment bar of balance / `wallet.max`. Its numbers, gold per hour and "Full again in 3h 20m" are on the hover tooltip (`walletLore`, `NpcWalletService.fill`);
@@ -46,6 +46,7 @@ None of opengui3 is tested in game since round 1. Rob restarts the dev server; t
 - craftengine-resources may hold other sessions' uncommitted work (e.g. `sneakyfishing_lure.bbmodel`); use `git pull --rebase --autostash` and stage only `assets/lom`.
 
 ## Open TODOs and known bugs
+0. Get Rob's yes, then test `disable-netty-injection: true` (or let the HUD thread fix it). If menus still break, ask for client `logs/latest.log` lines with `npc3`/`sneakyroamin`/`font`.
 1. Rob's in-game re-test of rounds 1-3; act on his screenshots. Check: the strap really hides "Inventory", the bars line up with their tracks, and the wallet tooltip shows on hover over the ledger's right half.
 2. Then his wish list above, ported to opengui3 style, as he picks.
 3. Other districts need their own palette dict and art glyphs.

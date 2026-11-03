@@ -92,6 +92,20 @@ class NpcWalletService(
         return state
     }
 
+    /** How full npc's wallet is (0..1 of its max) and when it's full again (null when full or it never restocks). */
+    fun fill(playerData: PlayerData, npc: NPC, nowMillis: Long = System.currentTimeMillis()): Pair<Double, Long?> {
+        val nativeCurrencyId = npc.wallet.currencyId
+        val state = getOrCreateRestockedWallet(playerData, npc, nowMillis)
+        val maxAtomic = nativeAtomicValue(nativeCurrencyId).multiply(BigInteger.valueOf(npc.wallet.max))
+        if (maxAtomic <= BigInteger.ZERO) return 1.0 to null
+        val totalAtomic = calculateTotalAtomic(state, currencyLookup.getConvertibleCurrencies(nativeCurrencyId)).min(maxAtomic)
+        val fraction = totalAtomic.toDouble() / maxAtomic.toDouble()
+        if (totalAtomic >= maxAtomic || npc.wallet.restockAmount <= 0L || npc.wallet.restockIntervalSeconds <= 0L) return fraction to null
+        val perInterval = nativeAtomicValue(nativeCurrencyId).multiply(BigInteger.valueOf(npc.wallet.restockAmount))
+        val intervals = maxAtomic.subtract(totalAtomic).add(perInterval).subtract(BigInteger.ONE).divide(perInterval).toLongSafe()
+        return fraction to state.lastRestockAtEpochMillis + intervals * npc.wallet.restockIntervalSeconds * 1000L
+    }
+
     private fun restockAndNormalize(
         state: NpcWalletState,
         npc: NPC,

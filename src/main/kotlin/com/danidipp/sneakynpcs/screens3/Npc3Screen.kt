@@ -116,23 +116,43 @@ internal class Npc3Screen(
 
         val next = nextStanding(rep)
         t.text(Npc3Layout.PANEL_LEFT, 94, "Reputation", GOLD)
-        t.right(Npc3Layout.PANEL_RIGHT, 94, if (next != null) "${rep.toInt()} / ${next.second}" else "${rep.toInt()}", CREAM)
-        val filled = (tierProgress(rep) * Npc3Layout.BAR_SEGMENTS).toInt()
-        val bar = Npc3Text.BAR.toString()
-        if (filled > 0) t.text(Npc3Layout.PANEL_LEFT, 104, bar.repeat(filled), GOLD)
-        if (filled < Npc3Layout.BAR_SEGMENTS) {
-            t.text(Npc3Layout.PANEL_LEFT + filled * Npc3Text.width(bar), 104, bar.repeat(Npc3Layout.BAR_SEGMENTS - filled), Npc3Layout.BAR_EMPTY)
-        }
+        t.right(Npc3Layout.PANEL_RIGHT, 94, "${rep.toInt()} / $MAX_REP", CREAM)
+        bar(t, Npc3Layout.PANEL_LEFT, 104, Npc3Layout.BAR_SEGMENTS, rep / MAX_REP, GOLD)
         t.text(Npc3Layout.PANEL_LEFT, 114, if (next != null) "${next.second - rep.toInt()} more to become ${next.first}" else "${firstName()} counts you a confidant", MUTED)
 
-        t.text(Npc3Layout.PANEL_LEFT, 141, "Your Purse", GOLD)
-        purseLines().take(3).forEachIndexed { i, line -> t.text(Npc3Layout.PANEL_LEFT, 151 + 9 * i, Npc3Text.fit(line, 74), CREAM) }
-        t.text(93, 141, Npc3Text.fit("${firstName()}'s Wallet", 74), GOLD)
-        val wallet = tillLines().take(2) + listOfNotNull(tillPerHour())
-        wallet.forEachIndexed { i, line -> t.text(93, 151 + 9 * i, Npc3Text.fit(line, 74), CREAM) }
+        t.text(Npc3Layout.PANEL_LEFT, 141, "Your Wallet", GOLD)
+        purse().take(3).forEachIndexed { i, (id, line) ->
+            t.text(Npc3Layout.PANEL_LEFT, 151 + 9 * i, Npc3Text.fit(line, 74), COIN_COLOURS[id] ?: CREAM)
+        }
+        // the NPC's wallet is a bar that fills back up over time; the numbers are on its tooltip (Rob, 2026-11-02)
+        t.text(Npc3Layout.WALLET_X, 141, Npc3Text.fit("${firstName()}'s Wallet", 74), GOLD)
+        bar(t, Npc3Layout.WALLET_X, Npc3Layout.WALLET_BAR_Y, Npc3Layout.WALLET_SEGMENTS, walletFill().first, Npc3Layout.WALLET_GREEN)
         val last = Npc2Memory.lastPurchase(player, npc.id)
         t.center(88, 181, Npc3Text.fit(if (last != null) "You last bought $last here" else "Your first time at this counter", 154), MUTED)
         return t.build()
+    }
+
+    /** segments of [Npc3Text.BAR] from x: the first fraction of them in colour, the rest empty */
+    private fun bar(t: Npc3Text, x: Int, y: Int, segments: Int, fraction: Double, colour: Int) {
+        val filled = (fraction.coerceIn(0.0, 1.0) * segments).toInt().let { if (fraction > 0 && it == 0) 1 else it }
+        val bar = Npc3Text.BAR.toString()
+        if (filled > 0) t.text(x, y, bar.repeat(filled), colour)
+        if (filled < segments) t.text(x + filled * Npc3Text.width(bar), y, bar.repeat(segments - filled), Npc3Layout.BAR_EMPTY)
+    }
+
+    private fun walletFill(): Pair<Double, Long?> {
+        val playerData = plugin.persistenceManager.dataCache[player.uniqueId] ?: return 0.0 to null
+        return plugin.npcWalletService.fill(playerData, npc)
+    }
+
+    private fun walletLore(): List<String> {
+        val (fraction, fullAt) = walletFill()
+        val refill = when {
+            fraction >= 1.0 -> "Full"
+            fullAt == null -> "Doesn't refill"
+            else -> "Full again in ${duration(fullAt - System.currentTimeMillis())}"
+        }
+        return tillLines().ifEmpty { listOf("Empty") } + listOfNotNull(tillPerHour(), refill)
     }
 
     private fun hint(option: Npc2Option) = when (option) {
@@ -166,8 +186,8 @@ internal class Npc3Screen(
     /** The 36 items shown over the hidden inventory: purse and till tooltips, and the close button. */
     private fun hubLedgerItems(): Array<ItemStack?> {
         val items = arrayOfNulls<ItemStack>(36)
-        val purse = button("Your purse", purseLines().ifEmpty { listOf("Coins on hand pay first") })
-        val till = button("${firstName()}'s wallet", tillLines().ifEmpty { listOf("Empty") } + listOfNotNull(tillPerHour()))
+        val purse = button("Your wallet", purseLines().ifEmpty { listOf("Coins on hand pay first") })
+        val till = button("${firstName()}'s wallet", walletLore())
         for (row in 0..2) {
             for (col in 0..3) items[row * 9 + col] = purse
             for (col in 5..8) items[row * 9 + col] = till
@@ -182,9 +202,12 @@ internal class Npc3Screen(
         return plugin.balanceService.getBankCurrencyUnits(player, currency)
     }
 
-    private fun purseLines(): List<String> = PURSE_CURRENCIES.mapNotNull { id ->
-        bankBalance(id)?.let { "${currencyName(id)}: ${formatBankDisplayAmount(it)}" }
+    /** (currency id, "Name: amount") for each purse currency that exists */
+    private fun purse(): List<Pair<String, String>> = PURSE_CURRENCIES.mapNotNull { id ->
+        bankBalance(id)?.let { id to "${currencyName(id)}: ${formatBankDisplayAmount(it)}" }
     }
+
+    private fun purseLines() = purse().map { it.second }
 
     private fun tillLines(): List<String> {
         val playerData = plugin.persistenceManager.dataCache[player.uniqueId] ?: return emptyList()
@@ -221,8 +244,8 @@ internal class Npc3Screen(
         val purse = bankBalance(PURSE_DEFAULT)?.let { "${formatBankDisplayAmount(it)} ${currencyName(PURSE_DEFAULT)}" } ?: "-"
         val till = tillLines().firstOrNull()?.let(::amountFirst) ?: "-"
         val left = Npc3Layout.PANEL_LEFT
-        t.text(left, 94, "Purse", GOLD)
-        val purseX = left + Npc3Text.width("Purse") + 4
+        t.text(left, 94, "Wallet", GOLD)
+        val purseX = left + Npc3Text.width("Wallet") + 4
         val half = (Npc3Layout.PANEL_RIGHT - left) / 2
         val tillText = Npc3Text.fit(till, half - Npc3Text.width("Till") - 8)
         val tillX = Npc3Layout.PANEL_RIGHT - Npc3Text.width(tillText) - 4 - Npc3Text.width("Till")
@@ -414,16 +437,23 @@ internal class Npc3Screen(
         private fun itemName(stack: ItemStack): String =
             PlainTextComponentSerializer.plainText().serialize(stack.effectiveName())
 
+        private const val MAX_REP = 100
+        private val COIN_COLOURS = mapOf("silver" to 0xD2D6DA, "gold" to 0xFFC93C, "dragoncoins" to 0xFF8A80)
+
+        /** "3h 20m", "45m", "under a minute" */
+        private fun duration(millis: Long): String {
+            val minutes = (millis.coerceAtLeast(0L) + 59_999L) / 60_000L
+            return when {
+                minutes < 1 -> "under a minute"
+                minutes < 60 -> "${minutes}m"
+                else -> "${minutes / 60}h" + if (minutes % 60 > 0) " ${minutes % 60}m" else ""
+            }
+        }
+
         private val STANDINGS = listOf("Stranger" to 0, "Familiar" to 10, "Friend" to 50, "Confidant" to 100)
 
         private fun nextStanding(rep: Double) = STANDINGS.firstOrNull { it.second > rep }
 
-        /** how far through the current standing toward the next (1 once Confidant) */
-        private fun tierProgress(rep: Double): Double {
-            val next = nextStanding(rep) ?: return 1.0
-            val from = STANDINGS.lastOrNull { it.second <= rep }?.second ?: return 0.0
-            return ((rep - from) / (next.second - from)).coerceIn(0.0, 1.0)
-        }
 
         private fun standing(rep: Double) = when {
             rep < 0 -> "Wary"

@@ -115,11 +115,15 @@ internal object Npc3Layout {
     const val PANEL_LEFT = 10
     const val PANEL_RIGHT = 166
     const val BAR_SEGMENTS = 52
+    const val WALLET_X = 93
+    const val WALLET_BAR_Y = 153
+    const val WALLET_SEGMENTS = 24
 
     const val GOLD = 0xF6C85A
     const val CREAM = 0xF5ECD7
     const val MUTED = 0xA9BFA0
     const val BAR_EMPTY = 0x344A32
+    const val WALLET_GREEN = 0x5FD35F
 
     const val HUB_TOP = ''
     const val HUB_BOTTOM = ''

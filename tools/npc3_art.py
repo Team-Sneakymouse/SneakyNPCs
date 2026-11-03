@@ -46,6 +46,8 @@ TOP_H, BOTTOM_H, W = 128, 100, 176
 PORTRAIT = (6, 20)             # 52 x 52 portrait glyph
 OPTION_X = (60, 171)           # option plaques, rows 0-3
 LEDGER = (5, 138, 171, 192)    # purse / till / memory over the hidden inventory
+REP_TRACK = (9, 106, 167, 111.5)       # under the 52-segment reputation bar (text line 104)
+WALLET_TRACK = (92, 155, 166, 160.5)   # under the NPC's 24-segment wallet bar (text line 153)
 
 
 def slot_xy(c, r):
@@ -227,6 +229,13 @@ def strap(im, pal):
         stud(im, x, 132.5, 1.4, pal)
 
 
+def track(im, box, pal):
+    """The recessed groove a segment bar sits in, with a thin brass rim."""
+    x0, y0, x1, y1 = g(box)
+    ImageDraw.Draw(im).rounded_rectangle([x0, y0, x1, y1], 4, fill=pal["socket"])
+    metal_ring(im, box, 1, 0.5, pal)
+
+
 def header(im, pal):
     """Name band at the top: a darker strip and a rule under it."""
     sh = Image.new("RGBA", im.size, (0, 0, 0, 0))
@@ -250,7 +259,9 @@ def hub(pal=GOATTOWN):
     for r in range(4):
         socket(im, *slot_xy(3, r), pal)
     rule(im, 6, W - 6, 90, pal)
+    track(im, REP_TRACK, pal)
     strap(im, pal)
+    track(im, WALLET_TRACK, pal)
     # ledger over the hidden inventory: purse | wallet, memory line under them
     d = ImageDraw.Draw(im)
     mid = (LEDGER[0] + LEDGER[2]) / 2
@@ -444,6 +455,12 @@ def width_of(widths, text):
     return sum(widths.get(ord(c), 0) for c in text)
 
 
+def bar(out, cells, widths, ox, x, y, segments, fraction, colour):
+    for k in range(segments):
+        full = k < int(segments * fraction)
+        x = draw(out, cells, widths, ox + x, 8 + y, chr(BAR_FULL if full else BAR_EMPTY), colour if full else (52, 74, 50)) - ox
+
+
 def preview(path, built):
     art, pics, widths, cells, nwidths, ncells = built
     pad = 8
@@ -477,25 +494,22 @@ def preview(path, built):
                 T(ox, 83, y, label, CREAM)
                 T(ox, 83, y + 8, hint, MUTED)
             T(ox, 10, 94, "Reputation", GOLD)
-            R(ox, 166, 94, "0 / 10", CREAM)
-            x = 10
-            for k in range(52):
-                x = draw(out, cells, widths, ox + x, pad + 104, chr(BAR_FULL if k < 9 else BAR_EMPTY), GOLD if k < 9 else (52, 74, 50)) - ox
+            R(ox, 166, 94, "0 / 100", CREAM)
+            bar(out, cells, widths, ox, 10, 104, 52, 0.06, GOLD)
             T(ox, 10, 114, "10 more to become Familiar", MUTED)
-            T(ox, 10, 141, "Your Purse", GOLD)
-            for k, line in enumerate(("Silver: 13,164", "Gold: 1,288", "Dragon Coins: 417")):
-                T(ox, 10, 151 + 9 * k, line, CREAM)
+            T(ox, 10, 141, "Your Wallet", GOLD)
+            for k, (line, col) in enumerate((("Silver: 13,164", (210, 214, 218)), ("Gold: 1,288", (255, 201, 60)), ("Dragon Coins: 417", (255, 138, 128)))):
+                T(ox, 10, 151 + 9 * k, line, col)
             T(ox, 93, 141, "Carl's Wallet", GOLD)
-            T(ox, 93, 151, "Gold: 1,000", CREAM)
-            T(ox, 93, 160, "Gold per Hour: 2", CREAM)
+            bar(out, cells, widths, ox, 93, 153, 24, 0.7, (95, 211, 95))
             C(ox, 88, 181, "You last bought Bread here", MUTED)
         else:
             R(ox, 167, 6, "Wares", MUTED)
             for k in range(13):
                 x, y = slot_xy(k % 9, k // 9)
                 out.alpha_composite(items, ((ox + x) * S, (pad + y) * S))
-            T(ox, 10, 94, "Purse", GOLD)
-            T(ox, 10 + width_of(widths, "Purse") + 4, 94, "1,288 Gold", CREAM)
+            T(ox, 10, 94, "Wallet", GOLD)
+            T(ox, 10 + width_of(widths, "Wallet") + 4, 94, "1,288 Gold", CREAM)
             R(ox, 166, 94, "1,000 Gold", CREAM)
             R(ox, 166 - width_of(widths, "1,000 Gold") - 4, 94, "Till", GOLD)
             C(ox, 70, 112, "1 / 2", CREAM)

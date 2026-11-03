@@ -38,6 +38,11 @@ Rob: "extra boxes in the design that look bad an AI like" and a bad seam between
 - **One board**: `window()` draws the cloth and frame once at full height (228) and `split()` cuts it at y 128, so top and bottom art join without a band.
 - **"Inventory" label hidden**: an iron strap across the seam (y 126.5-138, inside the frame) whose face is exactly 0x404040, the label's colour; the label has no shadow, so it disappears into it. On both hub and shop. The preview's stand-in label still shows faintly because the preview font bakes a shadow; in game it shouldn't.
 
+### Rob's round 3 (2026-11-02, not yet tested in game)
+- Hub ledger: "Your Wallet" (was Your Purse; the shop's "Purse" label is now "Wallet" too). Silver light grey, Gold gold, Dragon Coins light red (`COIN_COLOURS`).
+- The NPC's wallet is a green 24-segment bar in a brass-rimmed track (`WALLET_TRACK` in npc3_art.py, `Npc3Layout.WALLET_*`) filling balance / `wallet.max`. Numbers, gold per hour and "Full again in 3h 20m" are on the hover tooltip (`walletLore`, `NpcWalletService.fill`). Style from Rob's reference https://fast.rawb.tv/sBTWY.jpg.
+- Reputation reads `rep / 100` and the bar fills over 0..100 (as the old NPCGui progress bar), in its own track. Standings unchanged.
+
 ### Next (2026-11-02, pushed as SneakyNPCs 520e57e + craftengine-resources 78e6d424b)
 1. Wait for Rob's in-game re-test of round 1 fixes; act on his next screenshots.
 2. Offer to hide the vanilla "Inventory" label (Roamin's approach, or an empty-label trick) if Rob wants it gone.

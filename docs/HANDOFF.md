@@ -46,7 +46,7 @@ Reimagined NPC menus that run beside the old `NPCGui` menus, which stay untouche
 - craftengine-resources may hold other sessions' uncommitted work (e.g. `sneakyfishing_lure.bbmodel`); use `git pull --rebase --autostash` and stage only `assets/lom`.
 
 ## Open TODOs and known bugs
-0. Get Rob's yes, then test `disable-netty-injection: true` (or let the HUD thread fix it). If menus still break, ask for client `logs/latest.log` lines with `npc3`/`sneakyroamin`/`font`.
+0. MythicHUD breakage, still open. **Netty is ruled out (2026-11-03):** MythicHUD 1.3.5's `ChannelDuplexHandlerImpl` touches only BossEvent, Bundle, SetExperience, SetHealth and UpdateAttributes packets, never OpenScreen, so `disable-netty-injection` can't change titles. Its pack (separate `packs/mythichud/…zip`) has fonts only in `mythichud:`, `minecraft/textures/font/*` overrides, `gui/bars.png`, and text shaders that just discard alpha < 0.1. Only the single 704×512 / 704×400 glyphs fail (the small 52 px portrait and line fonts work), and the advance falls back to the missing glyph's, so the client fails to load or bake those glyphs. Next: Rob's client `logs/latest.log` (lines with `font`, `glyph`, `npc3`, `sneakyroamin`, `atlas`, or errors after the pack reload), plus whether his client or mods changed. If the log shows a bake/atlas failure, cut the art into ≤256×256 tiles (art.py + `Npc3Text.art`, and SneakyRoamin's `art.json` too).
 1. Rob's in-game re-test of rounds 1-3; act on his screenshots. Check: the strap really hides "Inventory", the bars line up with their tracks, and the wallet tooltip shows on hover over the ledger's right half.
 2. Then his wish list above, ported to opengui3 style, as he picks.
 3. Other districts need their own palette dict and art glyphs.

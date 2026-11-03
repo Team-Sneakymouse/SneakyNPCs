@@ -16,9 +16,12 @@ internal class Npc3Text {
 
     /** Paints art (a window half or a portrait) at x; call it before any text so the text draws on top. */
     fun art(glyph: Char, x: Int = 0): Npc3Text {
-        moveTo(x)
-        title = title.append(Component.text(glyph).font(ART_FONT).color(WHITE))
-        pen += widths[glyph.code] ?: 0
+        val parts = tiles[glyph.code] ?: listOf(glyph.code to 0)
+        for ((code, dx) in parts) {
+            moveTo(x + dx)
+            title = title.append(Component.text(code.toChar()).font(ART_FONT).color(WHITE))
+            pen += widths[code] ?: 0
+        }
         return this
     }
 
@@ -74,14 +77,19 @@ internal class Npc3Text {
 
         private val widths = HashMap<Int, Int>()
         private val nameWidths = HashMap<Int, Int>()
+        /** Window half -> its tile glyphs and their x offsets; the halves are cut up to fit the 256 px font atlas. */
+        private val tiles = HashMap<Int, MutableList<Pair<Int, Int>>>()
 
         init {
             Npc3Text::class.java.getResourceAsStream("/npc3_font.txt")!!.bufferedReader().readLines()
                 .filter { it.isNotBlank() && !it.startsWith("#") }
                 .forEach { line ->
                     val parts = line.split(' ')
-                    if (parts[0] == "name") nameWidths[parts[1].toInt()] = parts[2].toInt()
-                    else widths[parts[0].toInt()] = parts[1].toInt()
+                    when (parts[0]) {
+                        "name" -> nameWidths[parts[1].toInt()] = parts[2].toInt()
+                        "tile" -> tiles.getOrPut(parts[1].toInt()) { ArrayList() } += parts[2].toInt() to parts[3].toInt()
+                        else -> widths[parts[0].toInt()] = parts[1].toInt()
+                    }
                 }
         }
 

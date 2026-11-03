@@ -32,6 +32,12 @@ Screenshots: hub https://fast.rawb.tv/sFy1K.png, shop https://fast.rawb.tv/Vg39V
 - Drag to sell: on the shop the player's inventory clicks aren't cancelled any more (shift-click still sells; double-click stays blocked so it can't collect shop items). A drag that crosses the sell box sells the whole cursor stack.
 - Not asked for but visible: the vanilla "Inventory" label still draws over the bottom art.
 
+### Rob's round 2 (2026-11-02, looks only; not yet re-tested in game)
+Rob: "extra boxes in the design that look bad an AI like" and a bad seam between the two boards.
+- **No nested panels**: the shelf, controls, player-inventory, option plaque, alcove, reputation and ledger panels are gone. Sockets, the portrait's single brass frame, the header rule and one rule over the reputation stay, all straight on the board.
+- **One board**: `window()` draws the cloth and frame once at full height (228) and `split()` cuts it at y 128, so top and bottom art join without a band.
+- **"Inventory" label hidden**: an iron strap across the seam (y 126.5-138, inside the frame) whose face is exactly 0x404040, the label's colour; the label has no shadow, so it disappears into it. On both hub and shop. The preview's stand-in label still shows faintly because the preview font bakes a shadow; in game it shouldn't.
+
 ### Next (2026-11-02, pushed as SneakyNPCs 520e57e + craftengine-resources 78e6d424b)
 1. Wait for Rob's in-game re-test of round 1 fixes; act on his next screenshots.
 2. Offer to hide the vanilla "Inventory" label (Roamin's approach, or an empty-label trick) if Rob wants it gone.

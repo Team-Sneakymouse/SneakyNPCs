@@ -43,13 +43,9 @@ MUTED = (169, 191, 160)
 
 # ------------------------------------------------------------------ layout (GUI px; keep in step with Npc3Layout.kt)
 TOP_H, BOTTOM_H, W = 128, 100, 176
-ALCOVE = (5, 19, 59, 89)       # portrait alcove
 PORTRAIT = (6, 20)             # 52 x 52 portrait glyph
 OPTION_X = (60, 171)           # option plaques, rows 0-3
-REP_PANEL = (5, 91, 171, 125)  # reputation, chest rows 4-5
 LEDGER = (5, 138, 171, 192)    # purse / till / memory over the hidden inventory
-SHELF = (4, 16, 172, 90)       # shop products, rows 0-3
-CONTROLS = (4, 91, 172, 126)   # shop purse/till line and buttons
 
 
 def slot_xy(c, r):
@@ -127,12 +123,6 @@ def metal_ring(im, box, radius, width=1.0, pal=GOATTOWN):
     im.alpha_composite(hl)
 
 
-def panel(im, box, radius=3, pal=GOATTOWN, top=None, bottom=None, ring=True):
-    shadow(im, box, radius, pal=pal)
-    gradient_fill(im, box, radius, top or pal["panel_top"], bottom or pal["panel"])
-    if ring:
-        metal_ring(im, box, radius, 0.75, pal)
-
 
 def socket(im, x, y, pal=GOATTOWN, kind="plain"):
     """The box an item sits in: (x, y) is the item's top-left GUI px; the rim is 1 px around it."""
@@ -205,20 +195,36 @@ def rule(im, x0, x1, y, pal=GOATTOWN):
     stud(im, (x0 + x1) / 2, y + 0.25, 1.6, pal)
 
 
-def window(pal, h, seed, top=True):
-    """The window's base: cloth with a brass edge (only the outer sides: top art and bottom art join seamlessly)."""
-    im = cloth((W * S, h * S), pal, seed)
+def window(pal, seed):
+    """The window's base, drawn once at full height and cut at TOP_H, so the top and bottom art are one board."""
+    w, hh = W * S, (TOP_H + BOTTOM_H) * S
+    im = cloth((w, hh), pal, seed)
     d = ImageDraw.Draw(im)
-    w, hh = W * S, h * S
-    if top:
-        box = [0, 0, w - 1, hh + 40]
-    else:
-        box = [0, -40, w - 1, hh - 1]
+    box = [0, 0, w - 1, hh - 1]
     d.rounded_rectangle(box, 16, outline=pal["metal_dark"], width=10)
     d.rounded_rectangle([box[0] + 3, box[1] + 3, box[2] - 3, box[3] - 3], 14, outline=pal["metal"], width=4)
     d.rounded_rectangle([box[0] + 7, box[1] + 7, box[2] - 7, box[3] - 7], 10, outline=pal["metal_light"] + (90,), width=1)
-    # square off the corners the client draws beneath
     return im
+
+
+def split(im):
+    return im.crop((0, 0, W * S, TOP_H * S)), im.crop((0, TOP_H * S, W * S, (TOP_H + BOTTOM_H) * S))
+
+
+LABEL_GREY = (64, 64, 64)  # the client's 0x404040 "Inventory" label at x 8, y 128
+
+
+def strap(im, pal):
+    """An iron strap across the board at the seam. Its face is the label's own grey, so the client's
+    "Inventory" label (drawn over the title, no shadow) disappears into it."""
+    d = ImageDraw.Draw(im)
+    x0, x1 = int(3.5 * S), int((W - 3.5) * S)  # inside the brass frame, which runs on unbroken
+    d.rectangle([x0, int(126.5 * S), x1, 138 * S - 1], fill=pal["shadow"])
+    d.rectangle([x0, 127 * S, x1, int(137.5 * S) - 1], fill=LABEL_GREY)
+    d.line([(x0, 127 * S), (x1, 127 * S)], fill=(98, 98, 94), width=2)
+    d.line([(x0, int(137.5 * S) - 2), (x1, int(137.5 * S) - 2)], fill=(40, 40, 40), width=2)
+    for x in (66, 110, 154):
+        stud(im, x, 132.5, 1.4, pal)
 
 
 def header(im, pal):
@@ -232,51 +238,37 @@ def header(im, pal):
 
 
 # ------------------------------------------------------------------ screens
-def hub_top(pal=GOATTOWN):
-    im = window(pal, TOP_H, 11)
+def hub(pal=GOATTOWN):
+    """Everything sits straight on the board: sockets and text, no panels inside panels (Rob, 2026-11-02)."""
+    im = window(pal, 11)
     header(im, pal)
-    # portrait alcove: framed window, then the standing plate under the portrait
-    panel(im, ALCOVE, 3, pal, top=(16, 34, 25), bottom=(8, 18, 13))
+    # portrait: one brass frame, the standing under it
     px, py = PORTRAIT
-    ImageDraw.Draw(im).rectangle(g((px - 0.5, py - 0.5, px + 52.5, py + 52.5)), fill=pal["metal_dark"])
-    rule(im, ALCOVE[0] + 4, ALCOVE[2] - 4, py + 54, pal)
-    # option plaques, rows 0-3, each with its icon socket in column 3
+    shadow(im, (px - 1, py - 1, px + 53, py + 53), 2, pal=pal)
+    metal_ring(im, (px - 1.5, py - 1.5, px + 53.5, py + 53.5), 2, 0.75, pal)
+    # options, rows 0-3: an icon socket in column 3, label and hint beside it
     for r in range(4):
-        x, y = slot_xy(3, r)
-        box = (OPTION_X[0], y - 1 + 0.5, OPTION_X[1], y + 17 - 0.5)
-        panel(im, box, 3, pal, top=pal["row_top"], bottom=pal["row"])
-        socket(im, x, y, pal)
-    # reputation panel over chest rows 4-5
-    panel(im, REP_PANEL, 3, pal)
-    return im
-
-
-def hub_bottom(pal=GOATTOWN):
-    im = window(pal, BOTTOM_H, 12, top=False)
-    off = TOP_H
-    box = (LEDGER[0], LEDGER[1] - off, LEDGER[2], LEDGER[3] - off)
-    panel(im, box, 3, pal)
-    mid = (LEDGER[0] + LEDGER[2]) / 2
+        socket(im, *slot_xy(3, r), pal)
+    rule(im, 6, W - 6, 90, pal)
+    strap(im, pal)
+    # ledger over the hidden inventory: purse | wallet, memory line under them
     d = ImageDraw.Draw(im)
-    d.line([(mid * S, (box[1] + 4) * S), (mid * S, (box[1] + 37) * S)], fill=pal["rule"], width=2)
-    rule(im, box[0] + 6, box[2] - 6, box[1] + 40, pal)
+    mid = (LEDGER[0] + LEDGER[2]) / 2
+    d.line([(mid * S, (LEDGER[1] + 4) * S), (mid * S, (LEDGER[1] + 37) * S)], fill=pal["rule"], width=2)
     x, y = bottom_xy(4, 3)
-    socket(im, x, y - off, pal, kind="close")
-    cross(im, x, y - off)
+    socket(im, x, y, pal, kind="close")
+    cross(im, x, y)
     for c in (1, 7):
-        stud(im, 8 + 18 * c + 8, y - off + 8, 2.4, pal)
-    return im
+        stud(im, 8 + 18 * c + 8, y + 8, 2.4, pal)
+    return split(im)
 
 
-def shop_top(pal=GOATTOWN):
-    im = window(pal, TOP_H, 13)
+def shop(pal=GOATTOWN):
+    im = window(pal, 13)
     header(im, pal)
-    panel(im, SHELF, 3, pal, top=(15, 33, 24), bottom=(10, 24, 17))
     for r in range(4):
         for c in range(9):
             socket(im, *slot_xy(c, r), pal)
-    panel(im, CONTROLS, 3, pal)
-    rule(im, CONTROLS[0] + 6, CONTROLS[2] - 6, 105, pal)
     for c, kind in ((0, "back"), (2, "prev"), (4, "next")):
         x, y = slot_xy(c, 5)
         socket(im, x, y, pal)
@@ -284,18 +276,11 @@ def shop_top(pal=GOATTOWN):
     x, y = slot_xy(8, 5)
     socket(im, x, y, pal, kind="sell")
     coin_mark(im, x, y, pal)
-    return im
-
-
-def shop_bottom(pal=GOATTOWN):
-    im = window(pal, BOTTOM_H, 14, top=False)
-    off = TOP_H
-    panel(im, (4, 138 - off, 172, 194 - off), 3, pal, top=(15, 33, 24), bottom=(10, 24, 17))
+    strap(im, pal)
     for r in range(4):
         for c in range(9):
-            x, y = bottom_xy(c, r)
-            socket(im, x, y - off, pal)
-    return im
+            socket(im, *bottom_xy(c, r), pal)
+    return split(im)
 
 
 def portrait_bg(size=208, pal=GOATTOWN):
@@ -395,7 +380,8 @@ def write_json(path, data):
 def build(assets: Path):
     tex = assets / "textures/font/npc3"
     tex.mkdir(parents=True, exist_ok=True)
-    arts = [("hub_top", hub_top(), 0), ("hub_bottom", hub_bottom(), TOP_H), ("shop_top", shop_top(), 0), ("shop_bottom", shop_bottom(), TOP_H)]
+    (hub_top, hub_bottom), (shop_top, shop_bottom) = hub(), shop()
+    arts = [("hub_top", hub_top, 0), ("hub_bottom", hub_bottom, TOP_H), ("shop_top", shop_top, 0), ("shop_bottom", shop_bottom, TOP_H)]
     providers, widths, art_images = [], {}, {}
     for i, (name, im, y) in enumerate(arts):
         im.save(tex / f"{name}.png", optimize=True)
@@ -479,6 +465,7 @@ def preview(path, built):
         out.alpha_composite(art[f"{page}_top"], (ox * S, pad * S))
         out.alpha_composite(art[f"{page}_bottom"], (ox * S, (pad + TOP_H) * S))
         draw(out, ncells, nwidths, ox + 9, pad + NAME_Y, "Carl the Kobold", GOLD, NAME_H, NAME_CELL)
+        T(ox, 8, 128, "Inventory", LABEL_GREY)  # stand-in for the client's label; it should vanish into the strap
         if page == "hub":
             if 9 + width_of(nwidths, "Carl the Kobold") + 8 + width_of(widths, "Goat Town Merchant") <= 167:
                 R(ox, 167, 6, "Goat Town Merchant", MUTED)

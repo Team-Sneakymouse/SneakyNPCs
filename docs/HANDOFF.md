@@ -1,89 +1,57 @@
-# Handoff: NPC Screens 2 (`/sneakynpcs opengui2`)
+# Handoff: NPC Screens (`/sneakynpcs opengui3`, also opengui2)
 
 ## What it is
-A reimagined NPC menu system that runs beside the old `NPCGui` menus, which stay untouched until Rob swaps them. Each screen is a 6-row chest whose **title draws the whole screen**: a district frame image, the NPC's portrait, and live text placed with shifted copies of the vanilla font. It's the same idea as dragonband_gui, styled after Spell Book 2.0. Nothing about an NPC's words is baked into art.
+Reimagined NPC menus that run beside the old `NPCGui` menus, which stay untouched until Rob swaps them. Each screen is a 6-row chest whose **title draws the whole window** as font glyphs: art, portrait and live text. **opengui3** is the current one and copies SneakyRoamin's `/roamin` technique: smooth 4x art drawn as two title glyphs (top 128 px, bottom 100 px) covering both the chest and the player inventory, with items sitting in drawn sockets. opengui2 (`screens2/`) is the earlier take; Rob called it "cheap" and it stays as it is.
 
 ## Status (2026-11-02)
-- **v1 done and pushed** (SneakyNPCs `main`, craftengine-resources `main` 2249572a7). It has **not been tested in game yet**; Rob restarts the server.
-  - Hub: frame, portrait, name plaque, greeting in a speech bubble, up to 3 option plaques (`shop`, `leave`), and standing (rep label/number) + mood.
-  - Shop: the old shop's offers via the same services (`purchase`/`sell`, requirements, stock limits), with a price in the lore. It has pages, a sell box (slot 43; shift-click from your inventory also sells), purse/till tooltips, and back. Esc or a click outside returns to the hub.
-  - Wild picks done: **remember you** (the last purchase per character + NPC, in player PDC `sneakynpcs:npc2/<npc>/<charuuid>`; returning greeting) and **moods** (night = sleepy, rain = gloomy; picks the greeting pool).
-- **Moods change prices** (2026-11-01): buy prices x1.1 sleepy, x0.9 gloomy (rounded, min 1), overridable per NPC with `moodPrices: {night, rain, default}`. Lore strikes through the base price; the hub shows `+10%`/`-10%` under the mood. Sell payouts are unchanged.
-- Not started (Rob's picks, in rough priority): haggling needle minigame, friendship hearts + gifts dropped on the portrait, gossip (rep leaking within a district), animated portraits, the 3D offer on a counter, page-flip catalog with ribbon categories, phone/computer contacts. Also: more district frames, real per-NPC portraits, quest/tailor/taxes screens.
-- Rejected by Rob: typewriter text, live market, shoplifting, daily deal, dialogue trees, diaries, letters, receipts, jobs board, heist/casino, haunted, caravans, player-run shops, strikes, birthdays.
-
-## NPC Screens 3: `/sneakynpcs opengui3 <npc> [player]` (2026-11-02, not yet tested in game)
-Rob's take on round 3 (https://fast.rawb.tv/DnJuP.png): "looks very cheap" next to SneakyRoamin's `/roamin` and `/midgard` menus, so he asked for a rebuild from the ground up as opengui3. opengui2 stays as it is.
-- **Technique copied from SneakyRoamin**: the whole window (chest and player inventory) is smooth 4x art drawn as two title glyphs (`lom:npc3/art`). Items sit in drawn sockets at the real slot positions. Text uses `lom:npc3/line_<y>` (y 5..222, Liberation Sans Narrow Bold 8 px with a baked half-pixel shadow) and `lom:npc3/name` (11 px header at y 4). Each glyph is followed by KERN `` (-1), so letters keep their natural spacing.
-- **Hub**: name and title header; 3/4 Carl portrait in a brass alcove with the standing under it; 4 option plaques (icon socket plus label and hint; the 4th stays blank); a reputation panel with a bar toward the next standing. The player's inventory is hidden (`Npc3Mask`, a copy of Roamin's packet mask). In its place is a ledger: purse, till, and "You last bought X here". Close X is on the hotbar, col 4.
-- **Shop**: 36 product sockets; a purse/till line; back (col 0), previous (col 2), page, next (col 4), and a glowing sell box (col 8). It isn't masked: the player's own items show in the drawn sockets, so shift-click selling works.
-- It reads the same `npc2/<id>.yml` as opengui2 (new field `Npc2Config.portraitName`), so the server needs no new yml.
-- Theme: Goat Town in pine green and brass. A new district means a new palette dict in `tools/npc3_art.py` and its own art glyphs.
-- Files: `screens3/Npc3Screen.kt`, `Npc3Text.kt` (text builder and `Npc3Layout`), `Npc3Mask.kt`, `commands/OpenGUI3Command.kt`, `tools/npc3_art.py` (art, fonts and preview; writes `src/main/resources/npc3_font.txt`), and `docs/npc3_preview.png`.
-- Regenerate with `uv run --no-project --with pillow python tools/npc3_art.py <craftengine-resources>/resources/dev/resourcepack/assets/lom docs/npc3_preview.png`, then commit both repos.
-- Container slot math: chest rows at y 18+18r, player rows at 139+18r, hotbar 197 (vanilla ChestMenu). Art glyph tops sit at container y via ascent 13 - y.
-
-### Rob's first in-game feedback (2026-11-02): done, not yet re-tested in game
-Screenshots: hub https://fast.rawb.tv/sFy1K.png, shop https://fast.rawb.tv/Vg39V.png.
-- **Root cause of the misalignment** (bottom art, portrait, page text all ~2 px left): the name font's space was counted as 4 px in `npc3_font.txt` but draws 3, so with two spaces in "Carl the Kobold" every later glyph sat 2 px short. Fixed in `npc3_art.py` (`name_widths[32] = SPACE`).
-- Portrait mirrored (`ImageOps.mirror` in `portraits()`), so Carl faces the option plaques.
-- Hub ledger: "Your Purse" lists Silver, Gold, Dragon Coins (`PURSE_CURRENCIES`, names via `CURRENCY_NAMES`); "<FirstName>'s Wallet" with its balance and "Gold per Hour: N" from the NPC yml's `wallet.restockAmount` / `restockInterval` (Carl: 1 per 1800 s = 2).
-- Shop: still "Till"; the purse shows gold ("1,288 Gold") and may run up to the till label; all amounts use thousands separators.
-- Drag to sell: on the shop the player's inventory clicks aren't cancelled any more (shift-click still sells; double-click stays blocked so it can't collect shop items). A drag that crosses the sell box sells the whole cursor stack.
-- Not asked for but visible: the vanilla "Inventory" label still draws over the bottom art.
-
-### Rob's round 2 (2026-11-02, looks only; not yet re-tested in game)
-Rob: "extra boxes in the design that look bad an AI like" and a bad seam between the two boards.
-- **No nested panels**: the shelf, controls, player-inventory, option plaque, alcove, reputation and ledger panels are gone. Sockets, the portrait's single brass frame, the header rule and one rule over the reputation stay, all straight on the board.
-- **One board**: `window()` draws the cloth and frame once at full height (228) and `split()` cuts it at y 128, so top and bottom art join without a band.
-- **"Inventory" label hidden**: an iron strap across the seam (y 126.5-138, inside the frame) whose face is exactly 0x404040, the label's colour; the label has no shadow, so it disappears into it. On both hub and shop. The preview's stand-in label still shows faintly because the preview font bakes a shadow; in game it shouldn't.
-
-### Rob's round 3 (2026-11-02, not yet tested in game)
-- Hub ledger: "Your Wallet" (was Your Purse; the shop's "Purse" label is now "Wallet" too). Silver light grey, Gold gold, Dragon Coins light red (`COIN_COLOURS`).
-- The NPC's wallet is a green 24-segment bar in a brass-rimmed track (`WALLET_TRACK` in npc3_art.py, `Npc3Layout.WALLET_*`) filling balance / `wallet.max`. Numbers, gold per hour and "Full again in 3h 20m" are on the hover tooltip (`walletLore`, `NpcWalletService.fill`). Style from Rob's reference https://fast.rawb.tv/sBTWY.jpg.
-- Reputation reads `rep / 100` and the bar fills over 0..100 (as the old NPCGui progress bar), in its own track. Standings unchanged.
-
-### Next (2026-11-02, pushed as SneakyNPCs 520e57e + craftengine-resources 78e6d424b)
-1. Wait for Rob's in-game re-test of round 1 fixes; act on his next screenshots.
-2. Offer to hide the vanilla "Inventory" label (Roamin's approach, or an empty-label trick) if Rob wants it gone.
-3. Then Rob's opengui2 wish list above (haggling, hearts/gifts, gossip, ...) ported to opengui3 style, as he picks.
-- Widths gotcha: any font whose space advance in npc3_font.txt differs from the provider's `space` advance drifts every later glyph; check both when adding fonts.
-
-## Redesign round 3 (2026-11-02, after Rob's screenshot https://fast.rawb.tv/TLhci.png; not yet tested in game)
-Rob: art looked bad, wanted a 3/4 hi-res Carl; name plate misaligned; text "simple and cheap", wanted a different font with a shadow; no NPC talking at all; remove moods.
-- **Text**: every line now uses Cinzel Bold (OFL, `tools/npc2_art/Cinzel.ttf`) rasterised by `tools/npc2_render.py` at 3 texels per GUI pixel with a baked 2-texel drop shadow: `lom:npc2/text_<top>` (8 high, tops 5..140) and `lom:npc2/name_<top>` (11 high, tops 2..20, for the name plaque at top 3). The client adds 1px after each bitmap glyph, so the plugin follows each char with `` (-1px space) via `Npc2Text.kerned`. Advances are generated into `Npc2Glyphs.kt` by the pack script: never hand-edit it.
-- **Portrait**: `portrait_carl.png` is a 208x208 (4x) 3/4 render of Carl's real skin (`tools/npc2_art/carl_skin.png`, from Citizens saves.yml's skin texture) over a painted sky, by `portrait_from_skin` (yaw -35, pitch 15). Other NPCs: drop their skin in npc2_art and add a line to `write()` + `Npc2Portraits`.
-- **Removed**: speech strip on the shop, greetings/returning/shopLines/talk, the Have a chat option, moods and mood prices (`Npc2Mood`). Under the portrait: Standing heading, standing, rep number.
-- Options now: shop, sell, leave. The 4th plaque stays blank on purpose (Rob, 2026-11-02: "leave a blank space for future design use", not yet implemented).
+None of opengui3 is tested in game since round 1. Rob restarts the dev server; the pack rebuilds via the "Build and activate dev candidate" workflow on push.
+- **Hub**: name/title header; mirrored 3/4 Carl portrait in one brass frame with the standing under it; 4 option sockets (shop, sell, leave; the 4th is blank on purpose, "for future design use"); reputation `N / 100` with a gold bar in a track (fills over 0..100); an iron strap at y 126.5-138; a ledger over the hidden player inventory (`Npc3Mask`):
+  - "Your Wallet" with Silver (light grey), Gold (gold) and Dragon Coins (light red), via `COIN_COLOURS`;
+  - "<FirstName>'s Wallet" as a green 24-segment bar of balance / `wallet.max`. Its numbers, gold per hour and "Full again in 3h 20m" are on the hover tooltip (`walletLore`, `NpcWalletService.fill`);
+  - "You last bought X here"; close X on hotbar col 4.
+- **Shop**: 36 product sockets; a "Wallet … Till …" line; back (col 0), prev (2), page, next (4), glowing sell box (col 8). The player inventory isn't masked: shift-click and drag-to-sell work, and double-click is blocked.
+- **Rob's feedback rounds, all pushed** (latest SneakyNPCs `ba771f6`, craftengine-resources `acffc564c`):
+  - Round 1: fixed alignment (name-font space width), mirrored portrait, ledger contents, thousands separators, drag-to-sell.
+  - Round 2: removed every nested panel ("extra boxes … look AI like"), so only sockets and the outer frame remain. The window is drawn as one board, so no seam. The iron strap hides the vanilla "Inventory" label.
+  - Round 3: Your Wallet with coloured coins, the NPC wallet bar with hover details, reputation out of 100. Style reference: https://fast.rawb.tv/sBTWY.jpg.
+- **Not started** (Rob's picks, rough priority): haggling needle minigame; friendship hearts and gifts dropped on the portrait; gossip (rep leaking within a district); animated portraits; a 3D offer on a counter; page-flip catalog with ribbon categories; phone/computer contacts. Also more district themes, real per-NPC portraits, and quest/tailor/taxes screens.
+- **Rejected by Rob**: typewriter text, moods/mood prices, NPC talk/greetings, live market, shoplifting, daily deal, dialogue trees, diaries, letters, receipts, jobs board, heist/casino, haunted, caravans, player-run shops, strikes, birthdays.
 
 ## Key files
-- `screens2/Npc2Screen.kt`: holder + listener, hub/shop pages, buy/sell, back/Esc handling.
-- `screens2/Npc2Layout.kt`: pixel layout, `Npc2District` (frame chars), `Npc2Portraits`, `Npc2Text` (vanilla widths, wrap, space chars), `Npc2Title` (builds the title).
-- `screens2/Npc2Config.kt`: `npc2/<id>.yml` (re-read on every open, so no reload needed), options, `Npc2Mood`.
-- `screens2/Npc2Memory.kt`: character name/uuid via PlaceholderAPI (`%sneakycharacters_character_name_noformat%`), last purchase, greeting.
-- `commands/OpenGUI2Command.kt`: `/sneakynpcs opengui2 <npc> [player]`. The old one is `/sneakynpcs opengui`.
-- `src/main/resources/npc2/CarlTheKobold.yml`: example, saved to the data folder when `npc2/` doesn't exist.
-- `tools/npc2_pack.py`: generates the frames, portrait and fonts into craftengine-resources `resources/dev/resourcepack/assets/lom/{font,textures/font}/npc2/`. Re-run it after layout changes and commit there.
-- Only change to old code: `ShopMenu.items` / `bankDisplayCurrencyIds` are now `internal`.
+- `screens3/Npc3Screen.kt`: holder and listener, hub/shop titles and items, buy/sell, wallet bar/lore, `STANDINGS`, `MAX_REP`, `COIN_COLOURS`, `PURSE_CURRENCIES`.
+- `screens3/Npc3Text.kt`: title text builder (`text/right/center/art`, `fit`, widths from `npc3_font.txt`) and `Npc3Layout` (pixel layout and colours).
+- `screens3/Npc3Mask.kt`: packet mask that shows fake items over the player's inventory (copied from SneakyRoamin).
+- `commands/OpenGUI3Command.kt`: `/sneakynpcs opengui3 <npc> [player]`.
+- `shop/NpcWalletService.kt`: wallet restock; `fill()` gives the fraction and the time it's full again.
+- `tools/npc3_art.py`: draws all art, fonts and the preview, and writes `src/main/resources/npc3_font.txt`. The palette dict `GOATTOWN` and layout constants are at the top.
+- `docs/npc3_preview.png`: the latest preview (hub left, shop right).
+- Config: `npc2/<id>.yml` is shared with opengui2 (re-read on every open; example `src/main/resources/npc2/CarlTheKobold.yml`). The NPC's wallet/shop comes from `npc/<id>.yml`.
 
 ## Decisions and why
-- **Title-font rendering instead of Spellbook2's item-model glyphs**: far less machinery, and the pack already does GUI fonts this way (dragonband_gui). The cost: changing text means reopening the inventory, which recentres the mouse. So text that changes on every click (balances) lives in tooltips, and the title only changes on page/screen changes or after a buy/sell.
-- Fonts: `lom:npc2/frame` (space chars `+i` = +2^i and `+i` = -2^i; frames `` hub and `` shop; portrait ``), and `lom:npc2/text_<top>` for each line top from 5 to 140 (vanilla `ascii.png`, ascent 13 - top).
-- `npc2/` folder kept apart from `npc/` (Rob). Districts are frames (Rob); only Goat Town exists so far.
-- Commits go straight to `main` (Rob: "dani wont mind").
+- **Title-font art** instead of item-model glyphs: much less machinery. The cost is that changing text means reopening, which recentres the mouse, so per-click data lives in tooltips.
+- **No panels inside panels**: Rob's explicit dislike. Put things straight on the board; a rule or a bar track is fine.
+- **One board**: `window()` draws the full 228 px height once and `split()` cuts it at 128. Two separately drawn halves gave a visible band.
+- **"Inventory" label**: the client draws it after the title, so art can't cover it. The strap's face is exactly `#404040`, the label's colour, and the label has no shadow, so it vanishes. A lang override or shader would hide it on every chest, so that was rejected.
+- **Reputation out of 100** matches the old NPCGui progress bar. The stored rep is uncapped, and the bar clamps.
+- Commit straight to `main` in both repos (Rob: "dani wont mind").
 
 ## Gotchas
-- First in-game test (2026-11-02) found: the title's default grey (0x404040) tinted the art to 25% (fixed: title root is white); text fonts with top < 5 have ascent > height and don't load, so the name showed as boxes and every later text shifted right (fixed: tops 5..140, name plaque moved to y 0..15); the frame now ends at y 128 so the "Inventory" label is clear.
-- Layout numbers live in both `Npc2Layout.kt` and `tools/npc2_pack.py`; change them together.
-- Text fonts only draw ASCII 32–126 (anything else becomes `?`). Widths are the vanilla table in `Npc2Text`.
-- The hub art always draws 4 option plaques; unused ones are blank.
-- Build: `./gradlew check` works in this repo on Windows (it has no publishPreflight task).
-- Previews (`tools/npc2_pack.py <assets/lom> <preview-dir>`) draw the frames only; the in-game text uses the client font.
+- Regenerate: `uv run --no-project --with pillow python tools/npc3_art.py ../craftengine-resources/resources/dev/resourcepack/assets/lom docs/npc3_preview.png`, then commit both repos.
+- Layout numbers live in both `npc3_art.py` and `Npc3Layout`; change them together. Slot math: chest rows y 18+18r, player rows 139+18r, hotbar 197. Glyph ascent = 13 - y.
+- Text fonts `lom:npc3/line_<y>` (y 5..222) and `lom:npc3/name` (y 4). Every glyph is followed by KERN (-1). ASCII 32-126 plus `BAR` only.
+- **Widths gotcha**: if a font's space advance in `npc3_font.txt` differs from the provider's `space` advance, every later glyph drifts. That caused round 1's misalignment.
+- The preview font bakes a shadow, so the stand-in "Inventory" shows faintly in the preview only.
+- The title root colour must be white, or the art gets tinted.
+- `./gradlew check` works on Windows here (no publishPreflight).
+- craftengine-resources may hold other sessions' uncommitted work (e.g. `sneakyfishing_lure.bbmodel`); use `git pull --rebase --autostash` and stage only `assets/lom`.
+
+## Open TODOs and known bugs
+1. Rob's in-game re-test of rounds 1-3; act on his screenshots. Check: the strap really hides "Inventory", the bars line up with their tracks, and the wallet tooltip shows on hover over the ledger's right half.
+2. Then his wish list above, ported to opengui3 style, as he picks.
+3. Other districts need their own palette dict and art glyphs.
 
 ## How to test
-After Rob restarts the dev server (the pack must be rebuilt by the "Build and activate dev candidate" workflow), run `/sneakynpcs opengui2 CarlTheKobold`. Check:
-- The frame lines up with the slots and the text sits inside its panels.
-- Buy, sell (sell box and shift-click), pages, Back and Esc all work.
-- Reopening after a purchase gives the returning greeting.
-- `/sneakynpcs opengui CarlTheKobold` is unchanged.
-If the frame or text is offset, adjust `FRAME_X/FRAME_Y` or the text tops.
+After Rob restarts: `/sneakynpcs opengui3 CarlTheKobold`.
+- Hub: hover the right ledger for the wallet details; the options open the shop, sell or close.
+- Shop: buy, sell (sell box, shift-click, drag across the sell box), pages, back. Esc or a click outside returns to the hub.
+- `/sneakynpcs opengui` (old) and `opengui2` are unchanged.

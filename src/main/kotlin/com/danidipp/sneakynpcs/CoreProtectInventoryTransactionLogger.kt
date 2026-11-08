@@ -1,5 +1,9 @@
 package com.danidipp.sneakynpcs
 
+import net.coreprotect.CoreProtect
+import net.coreprotect.CoreProtectAPI
+import net.coreprotect.config.ConfigHandler
+import net.coreprotect.consumer.Queue
 import org.bukkit.Location
 import org.bukkit.entity.Player
 import org.bukkit.inventory.ItemStack
@@ -65,40 +69,31 @@ class CoreProtectInventoryTransactionLogger private constructor(
 
     companion object {
         fun create(plugin: JavaPlugin): InventoryTransactionLogger? {
-            val coreProtectPlugin = plugin.server.pluginManager.getPlugin("CoreProtect") ?: return null
+            val coreProtectPlugin = plugin.server.pluginManager.getPlugin("CoreProtect") as? CoreProtect ?: return null
             if (!coreProtectPlugin.isEnabled) return null
 
             return runCatching {
-                val coreProtectPluginClass = Class.forName("net.coreprotect.CoreProtect")
-                if (!coreProtectPluginClass.isInstance(coreProtectPlugin)) {
-                    plugin.logger.warning("CoreProtect plugin was present but not recognized. Item transactions will not be logged.")
+                val api = coreProtectPlugin.getAPI()
+                val version = api.APIVersion()
+                if (!api.isEnabled || version < 11) {
+                    plugin.logger.warning(
+                        "CoreProtect API v11+ is required for item transaction logging. Found v$version.",
+                    )
                     return null
                 }
 
-                val api = coreProtectPluginClass.getMethod("getAPI").invoke(coreProtectPlugin)
-                val apiClass = Class.forName("net.coreprotect.CoreProtectAPI")
-                val apiEnabled = apiClass.getMethod("isEnabled").invoke(api) as Boolean
-                val apiVersion = apiClass.getMethod("APIVersion").invoke(api) as Int
-                if (!apiEnabled || apiVersion < 11) {
-                    plugin.logger.warning("CoreProtect API v11+ is required for item transaction logging. Found v$apiVersion.")
-                    return null
-                }
-
-                val configHandlerClass = Class.forName("net.coreprotect.config.ConfigHandler")
-                val queueClass = Class.forName("net.coreprotect.consumer.Queue")
-
-                val itemsDestroyField = configHandlerClass.getField("itemsDestroy")
-                val itemsCreateField = configHandlerClass.getField("itemsCreate")
-                val getItemIdMethod = queueClass.getDeclaredMethod("getItemId", String::class.java).apply {
+                val itemsDestroyField = ConfigHandler::class.java.getField("itemsDestroy")
+                val itemsCreateField = ConfigHandler::class.java.getField("itemsCreate")
+                val getItemIdMethod = Queue::class.java.getDeclaredMethod("getItemId", String::class.java).apply {
                     isAccessible = true
                 }
-                val queueItemTransactionMethod = queueClass.getDeclaredMethod(
+                val queueItemTransactionMethod = Queue::class.java.getDeclaredMethod(
                     "queueItemTransaction",
                     String::class.java,
                     Location::class.java,
                     Int::class.javaPrimitiveType,
                     Int::class.javaPrimitiveType,
-                    Int::class.javaPrimitiveType
+                    Int::class.javaPrimitiveType,
                 ).apply {
                     isAccessible = true
                 }

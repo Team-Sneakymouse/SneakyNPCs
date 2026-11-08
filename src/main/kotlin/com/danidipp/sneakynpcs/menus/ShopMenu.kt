@@ -10,7 +10,7 @@ import com.danidipp.sneakynpcs.shop.ShopItemRequirement
 import com.danidipp.sneakynpcs.shop.ShopRequirementEvaluation
 import com.danidipp.sneakynpcs.shop.ShopSessionLedger
 import com.danidipp.sneakynpcs.shop.ShopTransactionService
-import com.nisovin.magicspells.util.magicitems.MagicItem
+import com.sneakyitems.util.magicitems.MagicItem
 import io.papermc.paper.datacomponent.DataComponentTypes
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.NamedTextColor

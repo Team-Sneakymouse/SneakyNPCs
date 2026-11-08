@@ -42,18 +42,21 @@ dependencies {
 	// NPC Screens 3: hides the player's inventory under the hub art by packets (same as SneakyRoamin)
 	compileOnly("io.netty:netty-transport:4.2.15.Final")
 	compileOnly("net.coreprotect:coreprotect:22.4") { isTransitive = false }
-	compileOnly("io.github.team-sneakymouse:magicspells:2026.10.15-f0a44ae377a3") {
+	compileOnly("io.github.team-sneakymouse:magicspells:2026.11.08-eca39854a666") {
 		isTransitive = false
 	}
+	compileOnly("io.github.team-sneakymouse:sneakyitems:2026.11.08-edc6088f8201")
 	testImplementation(kotlin("test"))
 	testCompileOnly("io.papermc.paper:paper-api:26.2.build.121-stable")
-	testCompileOnly("io.github.team-sneakymouse:magicspells:2026.10.15-f0a44ae377a3") {
+	testCompileOnly("io.github.team-sneakymouse:magicspells:2026.11.08-eca39854a666") {
 		isTransitive = false
 	}
+	testCompileOnly("io.github.team-sneakymouse:sneakyitems:2026.11.08-edc6088f8201")
 	testRuntimeOnly("io.papermc.paper:paper-api:26.2.build.121-stable")
-	testRuntimeOnly("io.github.team-sneakymouse:magicspells:2026.10.15-f0a44ae377a3") {
+	testRuntimeOnly("io.github.team-sneakymouse:magicspells:2026.11.08-eca39854a666") {
 		isTransitive = false
 	}
+	testRuntimeOnly("io.github.team-sneakymouse:sneakyitems:2026.11.08-edc6088f8201")
 }
 
 tasks.processResources {

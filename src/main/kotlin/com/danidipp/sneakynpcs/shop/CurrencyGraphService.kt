@@ -1,7 +1,7 @@
 package com.danidipp.sneakynpcs.shop
 
 import com.danidipp.sneakynpcs.SneakyNPCs
-import com.nisovin.magicspells.util.magicitems.MagicItems
+import com.sneakyitems.util.magicitems.MagicItems
 import org.bukkit.configuration.file.YamlConfiguration
 import java.io.File
 import java.math.BigInteger

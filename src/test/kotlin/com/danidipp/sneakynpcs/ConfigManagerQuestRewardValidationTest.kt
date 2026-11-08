@@ -6,7 +6,7 @@ import com.danidipp.sneakynpcs.menus.NPCQuestReputationReward
 import com.danidipp.sneakynpcs.menus.NPCQuestVariableOperation
 import com.danidipp.sneakynpcs.menus.NPCQuestVariableReward
 import com.danidipp.sneakynpcs.menus.applyQuestVariableOperation
-import com.nisovin.magicspells.util.magicitems.MagicItem
+import com.sneakyitems.util.magicitems.MagicItem
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
 import kotlin.test.Test
 import kotlin.test.assertEquals

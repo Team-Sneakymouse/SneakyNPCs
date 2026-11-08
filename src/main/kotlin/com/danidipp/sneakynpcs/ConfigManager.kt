@@ -29,8 +29,8 @@ import com.danidipp.sneakynpcs.shop.VariableShopRequirement
 import com.danidipp.sneakynpcs.shop.ShopItemRequirement
 import com.danidipp.sneakynpcs.shop.ReputationShopRequirement
 import com.nisovin.magicspells.MagicSpells
-import com.nisovin.magicspells.util.magicitems.MagicItem
-import com.nisovin.magicspells.util.magicitems.MagicItems
+import com.sneakyitems.util.magicitems.MagicItem
+import com.sneakyitems.util.magicitems.MagicItems
 import com.nisovin.magicspells.variables.Variable
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.JoinConfiguration

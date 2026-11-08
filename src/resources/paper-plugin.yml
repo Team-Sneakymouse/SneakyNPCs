@@ -10,6 +10,9 @@ dependencies:
     MagicSpells:
       load: BEFORE
       required: true
+    SneakyItems:
+      load: BEFORE
+      required: true
     CoreProtect:
       load: BEFORE
       required: false

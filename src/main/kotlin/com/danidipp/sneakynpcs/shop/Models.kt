@@ -1,6 +1,6 @@
 package com.danidipp.sneakynpcs.shop
 
-import com.nisovin.magicspells.util.magicitems.MagicItem
+import com.sneakyitems.util.magicitems.MagicItem
 import com.nisovin.magicspells.variables.Variable
 
 data class CurrencyDefinition(

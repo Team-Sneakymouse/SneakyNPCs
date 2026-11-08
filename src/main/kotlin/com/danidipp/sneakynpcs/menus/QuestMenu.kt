@@ -5,7 +5,7 @@ import com.danidipp.sneakynpcs.NPCGui
 import com.danidipp.sneakynpcs.PlayerData
 import com.danidipp.sneakynpcs.SneakyNPCs
 import com.nisovin.magicspells.MagicSpells
-import com.nisovin.magicspells.util.magicitems.MagicItem
+import com.sneakyitems.util.magicitems.MagicItem
 import me.clip.placeholderapi.PlaceholderAPI
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.NamedTextColor

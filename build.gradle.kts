@@ -32,6 +32,7 @@ repositories {
 	mavenCentral()
 	maven("https://repo.papermc.io/repository/maven-public/")
 	maven("https://maven.sneakyrp.com/releases")
+	maven("https://maven.playpro.com")
 }
 
 dependencies {
@@ -40,6 +41,7 @@ dependencies {
 	compileOnly("me.clip:placeholderapi:2.11.5")
 	// NPC Screens 3: hides the player's inventory under the hub art by packets (same as SneakyRoamin)
 	compileOnly("io.netty:netty-transport:4.2.15.Final")
+	compileOnly("net.coreprotect:coreprotect:22.4") { isTransitive = false }
 	compileOnly("io.github.team-sneakymouse:magicspells:2026.10.15-f0a44ae377a3") {
 		isTransitive = false
 	}

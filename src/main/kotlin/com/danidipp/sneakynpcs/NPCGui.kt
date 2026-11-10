@@ -3,6 +3,7 @@ package com.danidipp.sneakynpcs
 
 import com.danidipp.sneakynpcs.menus.NPCMenu
 import com.danidipp.sneakynpcs.menus.ShopMenu
+import com.sneakyutils.util.DisplayOnlyInventoryHolder
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.NamedTextColor
 import org.bukkit.Bukkit
@@ -15,9 +16,8 @@ import org.bukkit.event.inventory.InventoryClickEvent
 import org.bukkit.event.inventory.InventoryCloseEvent
 import org.bukkit.event.inventory.InventoryDragEvent
 import org.bukkit.inventory.Inventory
-import org.bukkit.inventory.InventoryHolder
 
-class NPCGui(val plugin: SneakyNPCs, val npc: NPC, val player: Player) : InventoryHolder {
+class NPCGui(val plugin: SneakyNPCs, val npc: NPC, val player: Player) : DisplayOnlyInventoryHolder {
     private val inventory: Inventory = Bukkit.createInventory(this, 9 * 6, Component.text(npc.id))
     override fun getInventory() = inventory
     private val menuStack = ArrayDeque<NPCMenu>()

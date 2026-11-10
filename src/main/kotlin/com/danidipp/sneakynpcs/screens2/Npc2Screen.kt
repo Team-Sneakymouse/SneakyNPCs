@@ -10,6 +10,7 @@ import com.danidipp.sneakynpcs.menus.shopOfferPage
 import com.danidipp.sneakynpcs.shop.ShopMessageFormatter
 import com.danidipp.sneakynpcs.shop.ShopRequirementEvaluation
 import com.danidipp.sneakynpcs.shop.ShopTransactionService
+import com.sneakyutils.util.DisplayOnlyInventoryHolder
 import io.papermc.paper.datacomponent.DataComponentTypes
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.NamedTextColor
@@ -28,7 +29,6 @@ import org.bukkit.event.inventory.InventoryCloseEvent
 import org.bukkit.event.inventory.InventoryDragEvent
 import org.bukkit.event.inventory.InventoryType
 import org.bukkit.inventory.Inventory
-import org.bukkit.inventory.InventoryHolder
 import org.bukkit.inventory.ItemStack
 
 /**
@@ -41,7 +41,7 @@ internal class Npc2Screen(
     private val config: Npc2Config,
     private val npc: NPC,
     private val player: Player,
-) : InventoryHolder {
+) : DisplayOnlyInventoryHolder {
     enum class Page { HUB, SHOP }
 
     private var page = Page.HUB

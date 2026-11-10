@@ -46,6 +46,7 @@ dependencies {
 		isTransitive = false
 	}
 	compileOnly("io.github.team-sneakymouse:sneakyitems:2026.11.08-edc6088f8201")
+	compileOnly("io.github.team-sneakymouse:sneakyutils:2026.11.10-7e1262ebd376")
 	testImplementation(kotlin("test"))
 	testCompileOnly("io.papermc.paper:paper-api:26.2.build.121-stable")
 	testCompileOnly("io.github.team-sneakymouse:magicspells:2026.11.08-eca39854a666") {

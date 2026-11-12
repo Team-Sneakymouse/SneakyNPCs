@@ -8,4 +8,4 @@ For domain terminology, read `CONTEXT.md`.
 
 When changing currencies or cross-plugin commands, read `docs/integrations.md`.
 
-Work in progress: see `docs/HANDOFF.md` (NPC Screens 2, `/opengui2`).
+When working on the NPC Screens (`/sneakynpcs opengui3`; opengui2 is the earlier version and stays as it is), read `docs/HANDOFF.md` and check its status date against recent commits.

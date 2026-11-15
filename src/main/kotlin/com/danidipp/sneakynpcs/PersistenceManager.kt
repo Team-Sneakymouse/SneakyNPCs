@@ -267,7 +267,7 @@ class PersistenceManager(val plugin: SneakyNPCs): Listener {
                 val playerFile = plugin.dataFolder.resolve("players").resolve("$uuid.yaml")
 
                 if (!playerFile.exists()) {
-                    plugin.logger.warning("Creating new player data for $uuid")
+                    plugin.logger.fine("Creating new player data for $uuid")
                     return@supplyAsync PlayerData(
                         uuid = uuid,
                         completedQuests = mutableSetOf(),
@@ -277,7 +277,7 @@ class PersistenceManager(val plugin: SneakyNPCs): Listener {
                     ).also { dataCache[uuid] = it }
                 }
 
-                plugin.logger.warning("Loading player data for $uuid")
+                plugin.logger.fine("Loading player data for $uuid")
                 val config = YamlConfiguration()
                 try {
                     playerFile.reader().use { reader -> config.load(reader) }
@@ -303,7 +303,7 @@ class PersistenceManager(val plugin: SneakyNPCs): Listener {
                 }
 
                 val playerData = loadPlayerDataFromConfig(uuid, config, plugin.npcs.keys)
-                plugin.logger.warning(
+                plugin.logger.fine(
                     "Loaded player data for $uuid: ${playerData.getCompletedQuests(null).size} completed quests, " +
                         "${playerData.getReputationEntries().size} reputation entries, ${playerData.getNpcWalletCount()} npc wallets, " +
                         "${playerData.getShopItemStockCount()} shop item stocks"

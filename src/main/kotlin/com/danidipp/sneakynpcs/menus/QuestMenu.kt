@@ -4,7 +4,7 @@ import com.danidipp.sneakynpcs.InventoryAuditItems
 import com.danidipp.sneakynpcs.NPCGui
 import com.danidipp.sneakynpcs.PlayerData
 import com.danidipp.sneakynpcs.SneakyNPCs
-import com.nisovin.magicspells.MagicSpells
+import com.danidipp.sneakynpcs.Variables
 import com.sneakyitems.util.magicitems.MagicItem
 import me.clip.placeholderapi.PlaceholderAPI
 import net.kyori.adventure.text.Component
@@ -208,7 +208,7 @@ class QuestMenu(val quests: List<NPCQuest>) : NPCMenu(MenuType.QUEST) {
     private fun completeQuest(player: Player, playerData: PlayerData, npcId: String, quest: NPCQuest) {
         val missingRewardVariable = quest.rewards
             .filterIsInstance<NPCQuestVariableReward>()
-            .firstOrNull { MagicSpells.getVariableManager().getVariable(it.variableName) == null }
+            .firstOrNull { !Variables.defined(it.variableName) }
         if (missingRewardVariable != null) {
             plugin.logger.warning(
                 "Failed to complete quest '${quest.quest}' for player '${player.name}': " +
@@ -323,10 +323,9 @@ class QuestMenu(val quests: List<NPCQuest>) : NPCMenu(MenuType.QUEST) {
     }
 
     private fun applyVariableReward(player: Player, reward: NPCQuestVariableReward) {
-        val variableManager = MagicSpells.getVariableManager()
-        val current = variableManager.getValue(reward.variableName, player)
+        val current = Variables.getNumber(player, reward.variableName)
         val next = applyQuestVariableOperation(current, reward.operation, reward.amount)
-        variableManager.set(reward.variableName, player, next)
+        Variables.setNumber(player, reward.variableName, next)
     }
 
     private fun deliverItemReward(player: Player, reward: NPCQuestItemReward) {

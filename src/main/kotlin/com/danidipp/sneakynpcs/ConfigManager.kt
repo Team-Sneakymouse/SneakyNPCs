@@ -31,7 +31,6 @@ import com.danidipp.sneakynpcs.shop.ReputationShopRequirement
 import com.nisovin.magicspells.MagicSpells
 import com.sneakyitems.util.magicitems.MagicItem
 import com.sneakyitems.util.magicitems.MagicItems
-import com.nisovin.magicspells.variables.Variable
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.JoinConfiguration
 import net.kyori.adventure.text.format.NamedTextColor
@@ -141,7 +140,7 @@ internal fun parseBankDisplayConfig(
 internal fun parseShopRequirementConfig(
     requirementYaml: Map<*, *>,
     path: String,
-    variableLookup: (String) -> Variable?,
+    hasVariable: (String) -> Boolean,
 ): Pair<ShopItemRequirement?, List<Component>> {
     val errors = ValidationErrors()
     val allowedKeys = setOf("variable", "min", "reputation", "hideOffer")
@@ -185,7 +184,7 @@ internal fun parseShopRequirementConfig(
         errors.add("$path.variable", "Missing or invalid field")
         return Pair(null, errors.toList())
     }
-    val variable = variableLookup(variableName) ?: run {
+    if (!hasVariable(variableName)) {
         errors.add("$path.variable", "Unknown MagicVariable '$variableName'")
         return Pair(null, errors.toList())
     }
@@ -210,7 +209,7 @@ internal fun parseShopRequirementConfig(
         }
     }
 
-    return Pair(VariableShopRequirement(variable, min, hideOffer), errors.toList())
+    return Pair(VariableShopRequirement(variableName, min, hideOffer), errors.toList())
 }
 
 internal fun validateQuestItemCount(items: List<*>, path: String): List<Component> {
@@ -1590,7 +1589,7 @@ class ConfigManager(private val plugin: SneakyNPCs) {
             rawRewards = rawRewards,
             path = path,
             itemLookup = { itemId -> MagicItems.getMagicItemFromString(itemId) },
-            hasVariable = { variableName -> MagicSpells.getVariableManager().getVariable(variableName) != null },
+            hasVariable = { variableName -> Variables.defined(variableName) },
         )
     }
 
@@ -1599,7 +1598,7 @@ class ConfigManager(private val plugin: SneakyNPCs) {
             rewardYaml = rewardYaml,
             path = path,
             itemLookup = { itemId -> MagicItems.getMagicItemFromString(itemId) },
-            hasVariable = { variableName -> MagicSpells.getVariableManager().getVariable(variableName) != null },
+            hasVariable = { variableName -> Variables.defined(variableName) },
         )
     }
 
@@ -1733,7 +1732,7 @@ class ConfigManager(private val plugin: SneakyNPCs) {
                     val (requirement, requirementErrors) = parseShopRequirementConfig(
                         requirementYaml = reqMap,
                         path = "$path.requirements[$reqIndex]",
-                        variableLookup = { variableName -> MagicSpells.getVariableManager().getVariable(variableName) },
+                        hasVariable = { variableName -> Variables.defined(variableName) },
                     )
                     errors.addAll(requirementErrors)
                     if (requirement != null) requirements.add(requirement)
@@ -1846,7 +1845,7 @@ class ConfigManager(private val plugin: SneakyNPCs) {
             menuYaml = menuYaml,
             path = path,
             currencyLookup = plugin.currencyGraphService,
-            hasVariable = { variableId -> MagicSpells.getVariableManager().getVariable(variableId) != null },
+            hasVariable = { variableId -> Variables.defined(variableId) },
             rewardItemLookup = { itemId -> MagicItems.getMagicItemByInternalName(itemId) },
         )
     }

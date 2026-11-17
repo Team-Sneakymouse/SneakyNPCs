@@ -1,6 +1,5 @@
 package com.danidipp.sneakynpcs.shop
 
-import com.nisovin.magicspells.variables.Variable
 import org.bukkit.entity.Player
 import java.lang.reflect.Proxy
 import kotlin.test.Test
@@ -8,20 +7,19 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class RequirementServiceTest {
-    private val service = RequirementService()
-
     @Test
     fun `requirements must all be met for purchase`() {
         val player = playerNamed("Dani")
-        val variable = TestVariable(mapOf("Dani" to 3.0))
+        val service = serviceWith(mapOf("lumberjack_level" to 3.0))
 
-        assertTrue(service.requirementsMet(listOf(VariableShopRequirement(variable, min = 3)), evaluation(player, 0.0)))
-        assertFalse(service.requirementsMet(listOf(VariableShopRequirement(variable, min = 4)), evaluation(player, 0.0)))
+        assertTrue(service.requirementsMet(listOf(VariableShopRequirement("lumberjack_level", min = 3)), evaluation(player, 0.0)))
+        assertFalse(service.requirementsMet(listOf(VariableShopRequirement("lumberjack_level", min = 4)), evaluation(player, 0.0)))
     }
 
     @Test
     fun `reputation requirement uses inclusive fractional threshold`() {
         val player = playerNamed("Dani")
+        val service = RequirementService()
         val requirement = ReputationShopRequirement(minimum = 12.5)
 
         assertTrue(service.requirementsMet(listOf(requirement), evaluation(player, 12.5)))
@@ -31,6 +29,7 @@ class RequirementServiceTest {
     @Test
     fun `zero reputation satisfies zero threshold`() {
         val player = playerNamed("Dani")
+        val service = RequirementService()
 
         assertTrue(
             service.requirementsMet(
@@ -43,9 +42,9 @@ class RequirementServiceTest {
     @Test
     fun `variable and reputation requirements must both be met`() {
         val player = playerNamed("Dani")
-        val variable = TestVariable(mapOf("Dani" to 3.0))
+        val service = serviceWith(mapOf("lumberjack_level" to 3.0))
         val requirements = listOf(
-            VariableShopRequirement(variable, min = 3),
+            VariableShopRequirement("lumberjack_level", min = 3),
             ReputationShopRequirement(minimum = 12.5),
         )
 
@@ -56,6 +55,7 @@ class RequirementServiceTest {
     @Test
     fun `unmet reputation requirement only hides offer when configured`() {
         val player = playerNamed("Dani")
+        val service = RequirementService()
 
         assertTrue(
             service.offerVisible(
@@ -74,22 +74,21 @@ class RequirementServiceTest {
     @Test
     fun `offer stays visible when unmet requirement does not hide offer`() {
         val player = playerNamed("Dani")
-        val variable = TestVariable(mapOf("Dani" to 3.0))
+        val service = serviceWith(mapOf("lumberjack_level" to 3.0))
 
-        assertTrue(service.offerVisible(listOf(VariableShopRequirement(variable, min = 4, hideOffer = false)), evaluation(player, 0.0)))
+        assertTrue(service.offerVisible(listOf(VariableShopRequirement("lumberjack_level", min = 4, hideOffer = false)), evaluation(player, 0.0)))
     }
 
     @Test
     fun `offer is hidden when any hiding requirement is unmet`() {
         val player = playerNamed("Dani")
-        val level = TestVariable(mapOf("Dani" to 3.0))
-        val quest = TestVariable(mapOf("Dani" to 1.0))
+        val service = serviceWith(mapOf("level" to 3.0, "quest" to 1.0))
 
         assertFalse(
             service.offerVisible(
                 listOf(
-                    VariableShopRequirement(level, min = 4, hideOffer = true),
-                    VariableShopRequirement(quest, min = 1, hideOffer = true),
+                    VariableShopRequirement("level", min = 4, hideOffer = true),
+                    VariableShopRequirement("quest", min = 1, hideOffer = true),
                 ),
                 evaluation(player, 0.0),
             )
@@ -99,10 +98,13 @@ class RequirementServiceTest {
     @Test
     fun `offer is visible when all hiding requirements are met`() {
         val player = playerNamed("Dani")
-        val variable = TestVariable(mapOf("Dani" to 4.0))
+        val service = serviceWith(mapOf("lumberjack_level" to 4.0))
 
-        assertTrue(service.offerVisible(listOf(VariableShopRequirement(variable, min = 4, hideOffer = true)), evaluation(player, 0.0)))
+        assertTrue(service.offerVisible(listOf(VariableShopRequirement("lumberjack_level", min = 4, hideOffer = true)), evaluation(player, 0.0)))
     }
+
+    private fun serviceWith(values: Map<String, Double>) =
+        RequirementService { _, name -> values[name] ?: 0.0 }
 
     private fun playerNamed(name: String): Player {
         return Proxy.newProxyInstance(
@@ -121,10 +123,4 @@ class RequirementServiceTest {
 
     private fun evaluation(player: Player, reputation: Double) =
         ShopRequirementEvaluation(player, owningNpcReputation = reputation)
-
-    private class TestVariable(private val values: Map<String, Double>) : Variable() {
-        override fun set(playerName: String, value: Double) = Unit
-        override fun getValue(playerName: String): Double = values[playerName] ?: 0.0
-        override fun reset(playerName: String) = Unit
-    }
 }

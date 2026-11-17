@@ -11,6 +11,10 @@ dependencies:
       load: BEFORE
       required: true
       join-classpath: true
+    SneakyVariables:
+      load: BEFORE
+      required: true
+      join-classpath: true
     MagicSpells:
       load: BEFORE
       required: true

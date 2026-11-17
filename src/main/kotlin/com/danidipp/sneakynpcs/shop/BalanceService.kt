@@ -1,6 +1,6 @@
 package com.danidipp.sneakynpcs.shop
 
-import com.nisovin.magicspells.MagicSpells
+import com.danidipp.sneakynpcs.Variables
 import org.bukkit.NamespacedKey
 import org.bukkit.entity.Player
 import org.bukkit.inventory.Inventory
@@ -27,13 +27,13 @@ class BalanceService {
 
     fun getBankCurrencyUnits(player: Player, currency: CurrencyDefinition): Long {
         val variableId = currency.variableId ?: return 0L
-        val value = MagicSpells.getVariableManager().getValue(variableId, player)
+        val value = Variables.getNumber(player, variableId)
         return value.toLong().coerceAtLeast(0L)
     }
 
     fun setBankCurrencyUnits(player: Player, currency: CurrencyDefinition, amount: Long) {
         val variableId = currency.variableId ?: return
-        MagicSpells.getVariableManager().set(variableId, player, amount.toDouble())
+        Variables.setNumber(player, variableId, amount.toDouble())
     }
 
     fun addBankCurrencyUnits(player: Player, currency: CurrencyDefinition, amount: Long) {

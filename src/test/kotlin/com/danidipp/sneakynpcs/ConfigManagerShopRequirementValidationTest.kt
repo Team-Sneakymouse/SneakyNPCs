@@ -1,6 +1,5 @@
 package com.danidipp.sneakynpcs
 
-import com.nisovin.magicspells.variables.Variable
 import com.danidipp.sneakynpcs.shop.ReputationShopRequirement
 import com.danidipp.sneakynpcs.shop.VariableShopRequirement
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
@@ -13,7 +12,6 @@ import kotlin.test.assertTrue
 
 class ConfigManagerShopRequirementValidationTest {
     private val serializer = PlainTextComponentSerializer.plainText()
-    private val variable = TestVariable()
 
     @Test
     fun `shop reputation requirement parses fractional threshold`() {
@@ -23,7 +21,7 @@ class ConfigManagerShopRequirementValidationTest {
                 "hideOffer" to true,
             ),
             path = "rootMenu.items[0].requirements[0]",
-            variableLookup = { null },
+            hasVariable = { false },
         )
 
         val parsedRequirement = requirement as ReputationShopRequirement
@@ -41,7 +39,7 @@ class ConfigManagerShopRequirementValidationTest {
                 "reputation" to 12.5,
             ),
             path = "rootMenu.items[0].requirements[0]",
-            variableLookup = { variable },
+            hasVariable = { true },
         )
 
         assertNull(requirement)
@@ -59,7 +57,7 @@ class ConfigManagerShopRequirementValidationTest {
             val (requirement, errors) = parseShopRequirementConfig(
                 requirementYaml = mapOf("reputation" to invalidValue),
                 path = "rootMenu.items[0].requirements[0]",
-                variableLookup = { null },
+                hasVariable = { false },
             )
 
             assertNull(requirement, "Expected '$invalidValue' to be rejected")
@@ -75,7 +73,7 @@ class ConfigManagerShopRequirementValidationTest {
                 "min" to 10,
             ),
             path = "rootMenu.items[0].requirements[0]",
-            variableLookup = { null },
+            hasVariable = { false },
         )
 
         assertNull(requirement)
@@ -94,11 +92,11 @@ class ConfigManagerShopRequirementValidationTest {
                 "hideOffer" to true,
             ),
             path = "rootMenu.items[0].requirements[0]",
-            variableLookup = { variableName -> if (variableName == "lumberjack_level") variable else null },
+            hasVariable = { variableName -> variableName == "lumberjack_level" },
         )
 
         val parsedRequirement = assertNotNull(requirement) as VariableShopRequirement
-        assertEquals(variable, parsedRequirement.variable)
+        assertEquals("lumberjack_level", parsedRequirement.variableName)
         assertEquals(5, parsedRequirement.min)
         assertTrue(parsedRequirement.hideOffer)
         assertTrue(errors.isEmpty())
@@ -112,7 +110,7 @@ class ConfigManagerShopRequirementValidationTest {
                 "min" to 1,
             ),
             path = "rootMenu.items[0].requirements[0]",
-            variableLookup = { variableName -> if (variableName == "lumberjack_level") variable else null },
+            hasVariable = { variableName -> variableName == "lumberjack_level" },
         )
 
         val parsedRequirement = assertNotNull(requirement) as VariableShopRequirement
@@ -129,7 +127,7 @@ class ConfigManagerShopRequirementValidationTest {
                 "hideOffer" to "true",
             ),
             path = "rootMenu.items[0].requirements[0]",
-            variableLookup = { variableName -> if (variableName == "lumberjack_level") variable else null },
+            hasVariable = { variableName -> variableName == "lumberjack_level" },
         )
 
         val parsedRequirement = assertNotNull(requirement) as VariableShopRequirement
@@ -138,11 +136,5 @@ class ConfigManagerShopRequirementValidationTest {
             listOf(" - rootMenu.items[0].requirements[0].hideOffer: Must be a boolean"),
             errors.map(serializer::serialize),
         )
-    }
-
-    private class TestVariable : Variable() {
-        override fun set(playerName: String, value: Double) = Unit
-        override fun getValue(playerName: String): Double = 0.0
-        override fun reset(playerName: String) = Unit
     }
 }

@@ -1,7 +1,6 @@
 package com.danidipp.sneakynpcs.shop
 
 import com.sneakyitems.util.magicitems.MagicItem
-import com.nisovin.magicspells.variables.Variable
 
 data class CurrencyDefinition(
     val id: String,
@@ -23,7 +22,7 @@ sealed interface ShopItemRequirement {
 }
 
 data class VariableShopRequirement(
-    val variable: Variable,
+    val variableName: String,
     val min: Int,
     override val hideOffer: Boolean = false,
 ) : ShopItemRequirement

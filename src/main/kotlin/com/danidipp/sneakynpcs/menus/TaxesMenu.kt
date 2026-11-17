@@ -4,7 +4,7 @@ import com.danidipp.sneakynpcs.InventoryAuditItems
 import com.danidipp.sneakynpcs.NPCGui
 import com.danidipp.sneakynpcs.PlayerData
 import com.danidipp.sneakynpcs.shop.CurrencyDefinition
-import com.nisovin.magicspells.MagicSpells
+import com.danidipp.sneakynpcs.Variables
 import com.sneakyitems.util.magicitems.MagicItem
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.JoinConfiguration
@@ -142,7 +142,7 @@ class TaxesMenu(
             return
         }
 
-        MagicSpells.getVariableManager().set(BANK_TAX_VARIABLE, player, bankTaxAfterPayment(currentTax, buttonConfig.taxAmount).toDouble())
+        Variables.setNumber(player, BANK_TAX_VARIABLE, bankTaxAfterPayment(currentTax, buttonConfig.taxAmount).toDouble())
         val leftovers = player.inventory.addItem(writStack)
         if (leftovers.isNotEmpty()) {
             plugin.logger.warning("Failed to deliver tax reward payment for player '${player.name}'")
@@ -220,7 +220,7 @@ class TaxesMenu(
     }
 
     private fun getBankTax(player: Player): Long {
-        return MagicSpells.getVariableManager().getValue(BANK_TAX_VARIABLE, player).toLong()
+        return Variables.getNumber(player, BANK_TAX_VARIABLE).toLong()
     }
 
     private fun applyReplacements(input: String, replacements: Map<String, String>): String {

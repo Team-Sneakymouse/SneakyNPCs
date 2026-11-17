@@ -10,6 +10,8 @@ plugins {
 
 group = "io.github.team-sneakymouse"
 
+val sneakyVariablesVersion = "2026.11.17-8fcaabc393e3"
+
 version =
 	providers.exec {
 		workingDir(rootDir)
@@ -31,7 +33,7 @@ repositories {
 	}
 	mavenCentral()
 	maven("https://repo.papermc.io/repository/maven-public/")
-	maven("https://maven.sneakyrp.com/releases")
+	maven("https://maven.sneakyrp.com/sneakymouse")
 	maven("https://maven.playpro.com")
 }
 
@@ -47,12 +49,14 @@ dependencies {
 	}
 	compileOnly("io.github.team-sneakymouse:sneakyitems:2026.11.08-edc6088f8201")
 	compileOnly("io.github.team-sneakymouse:sneakyutils:2026.11.10-7e1262ebd376")
+	compileOnly("io.github.team-sneakymouse:sneakyvariables:$sneakyVariablesVersion")
 	testImplementation(kotlin("test"))
 	testCompileOnly("io.papermc.paper:paper-api:26.2.build.121-stable")
 	testCompileOnly("io.github.team-sneakymouse:magicspells:2026.11.08-eca39854a666") {
 		isTransitive = false
 	}
 	testCompileOnly("io.github.team-sneakymouse:sneakyitems:2026.11.08-edc6088f8201")
+	testCompileOnly("io.github.team-sneakymouse:sneakyvariables:$sneakyVariablesVersion")
 	testRuntimeOnly("io.papermc.paper:paper-api:26.2.build.121-stable")
 	testRuntimeOnly("io.github.team-sneakymouse:magicspells:2026.11.08-eca39854a666") {
 		isTransitive = false
@@ -114,7 +118,7 @@ publishing {
 	repositories {
 		maven {
 			name = "sneakyrp"
-			url = uri("https://maven.sneakyrp.com/releases")
+			url = uri("https://maven.sneakyrp.com/sneakymouse")
 			credentials(PasswordCredentials::class)
 			authentication {
 				create<org.gradle.authentication.http.BasicAuthentication>("basic")

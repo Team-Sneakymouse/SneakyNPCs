@@ -2,6 +2,7 @@ package com.danidipp.sneakynpcs
 
 import com.danidipp.sneakynpcs.menus.CustomMenu
 import com.danidipp.sneakynpcs.menus.ExternalMenu
+import com.danidipp.sneakynpcs.menus.ExternalMenuAction
 import com.danidipp.sneakynpcs.menus.NPCQuestCommandReward
 import com.danidipp.sneakynpcs.menus.NPCMenu
 import com.danidipp.sneakynpcs.menus.NPCQuest
@@ -58,6 +59,13 @@ data class ConfigErrorInfo(
     }
 }
 
+/** Result of a config load: NPCs that loaded, NPCs that failed, and warnings that did not fail an NPC. */
+data class ConfigLoadResult(
+    val configs: MutableMap<String, NPC>,
+    val errors: List<ConfigErrorInfo>,
+    val warnings: List<ConfigErrorInfo>,
+)
+
 class ConfigValidationException(
     val validationErrors: List<ConfigErrorInfo>,
     message: String,
@@ -84,6 +92,28 @@ private fun validationTitle(subject: String, location: String? = null): Componen
     }
     parts.add(Component.text(" failed", NamedTextColor.RED))
     return Component.join(JoinConfiguration.noSeparators(), parts)
+}
+
+private fun warningTitle(subject: String, location: String): Component {
+    return Component.join(
+        JoinConfiguration.noSeparators(),
+        Component.text("[Config] ", NamedTextColor.DARK_GRAY),
+        Component.text(subject, NamedTextColor.GOLD),
+        Component.text(" @ ", NamedTextColor.DARK_GRAY),
+        Component.text(location, NamedTextColor.YELLOW),
+        Component.text(" has warnings", NamedTextColor.YELLOW),
+    )
+}
+
+/** A config problem that is reported but does not fail the NPC. */
+internal fun validationWarningDetail(path: String, message: String): Component {
+    return Component.join(
+        JoinConfiguration.noSeparators(),
+        Component.text(" - ", NamedTextColor.YELLOW),
+        Component.text(path, NamedTextColor.YELLOW),
+        Component.text(": ", NamedTextColor.DARK_GRAY),
+        Component.text(message, NamedTextColor.GRAY),
+    )
 }
 
 private fun validationDetail(path: String, message: String): Component {
@@ -217,32 +247,60 @@ internal fun validateQuestItemCount(items: List<*>, path: String): List<Componen
     return listOf(validationDetail(path, "May contain at most $maxQuestItems items"))
 }
 
+internal data class ExternalMenuConfigResult(
+    val action: ExternalMenuAction?,
+    val errors: List<Component>,
+    val warnings: List<Component>,
+)
+
+// An unknown spell is a warning, not an error: MagicSpells may have it disabled for now, and the menu
+// looks the spell up again on every click (see ExternalMenu).
 internal fun parseExternalMenuConfig(
     menuYaml: Map<*, *>,
     path: String,
     spellLookup: (String) -> Any?,
-): Pair<String?, List<Component>> {
+): ExternalMenuConfigResult {
     val errors = ValidationErrors()
-    val allowedKeys = setOf("type", "magicspell")
+    val warnings = mutableListOf<Component>()
+    val allowedKeys = setOf("type", "magicspell", "command")
     val unknownKeys = menuYaml.keys.filterIsInstance<String>().filterNot { it in allowedKeys }
     if (unknownKeys.isNotEmpty()) {
         errors.add(path, "Unknown external menu keys ${unknownKeys.joinToString(", ")}")
     }
 
+    if (listOf("magicspell", "command").count(menuYaml::containsKey) != 1) {
+        errors.add(path, "External menu must define exactly one of 'magicspell' or 'command'")
+        return ExternalMenuConfigResult(null, errors.toList(), warnings)
+    }
+
+    if (menuYaml.containsKey("command")) {
+        val command = menuYaml["command"] as? String
+        when {
+            command == null -> errors.add("$path.command", "Missing or invalid field")
+            command.isBlank() -> errors.add("$path.command", "Cannot be blank")
+            else -> return ExternalMenuConfigResult(ExternalMenuAction.ConsoleCommand(command), errors.toList(), warnings)
+        }
+        return ExternalMenuConfigResult(null, errors.toList(), warnings)
+    }
+
     val magicSpellId = menuYaml["magicspell"] as? String ?: run {
         errors.add("$path.magicspell", "Missing or invalid field")
-        return Pair(null, errors.toList())
+        return ExternalMenuConfigResult(null, errors.toList(), warnings)
     }
     if (magicSpellId.isBlank()) {
         errors.add("$path.magicspell", "Cannot be blank")
-        return Pair(null, errors.toList())
+        return ExternalMenuConfigResult(null, errors.toList(), warnings)
     }
     if (spellLookup(magicSpellId) == null) {
-        errors.add("$path.magicspell", "Unknown MagicSpell internal spell id '$magicSpellId'")
-        return Pair(null, errors.toList())
+        warnings.add(
+            validationWarningDetail(
+                "$path.magicspell",
+                "Unknown MagicSpell internal spell id '$magicSpellId'. The option does nothing until MagicSpells has this spell."
+            )
+        )
     }
 
-    return Pair(magicSpellId, errors.toList())
+    return ExternalMenuConfigResult(ExternalMenuAction.MagicSpell(magicSpellId), errors.toList(), warnings)
 }
 
 internal fun parseTailorMenuConfig(
@@ -1052,7 +1110,7 @@ class ConfigManager(private val plugin: SneakyNPCs) {
 
     // Currency errors abort the batch; NPC errors retain source IDs so reload can
     // keep each working NPC whose replacement failed validation.
-    fun loadConfigs(): CompletableFuture<Pair<MutableMap<String, NPC>, List<ConfigErrorInfo>>> {
+    fun loadConfigs(): CompletableFuture<ConfigLoadResult> {
         configs.clear()
         return CompletableFuture.supplyAsync {
             plugin.logger.info("Loading currencies and NPC configs...")
@@ -1094,13 +1152,24 @@ class ConfigManager(private val plugin: SneakyNPCs) {
             plugin.logger.info("Processing ${files.size} NPC config files")
             val loadedConfigs = mutableMapOf<String, NPC>()
             val allErrors = mutableListOf<ConfigErrorInfo>()
+            val allWarnings = mutableListOf<ConfigErrorInfo>()
 
             for (file in files) {
                 try {
                     val npcYaml = YamlConfiguration.loadConfiguration(file)
                     val npcId = file.nameWithoutExtension
                     val npcAvailabilityReport = ShopOfferAvailabilityReportAccumulator(shopDate)
-                    val (config, errors) = parseNPC(npcId, npcYaml, shopDate, npcAvailabilityReport)
+                    val warnings = mutableListOf<Component>()
+                    val (config, errors) = parseNPC(npcId, npcYaml, shopDate, npcAvailabilityReport, warnings)
+                    if (warnings.isNotEmpty()) {
+                        val warningInfo = ConfigErrorInfo(
+                            sourceId = npcId,
+                            title = warningTitle("NPC '$npcId'", file.name),
+                            errors = warnings,
+                        )
+                        logValidationWarning(warningInfo)
+                        allWarnings.add(warningInfo)
+                    }
                     if (errors.isNotEmpty()) {
                         val errorInfo = ConfigErrorInfo(
                             sourceId = npcId,
@@ -1125,12 +1194,15 @@ class ConfigManager(private val plugin: SneakyNPCs) {
                 }
             }
 
-            plugin.logger.info("Config loading complete: ${loadedConfigs.size} successful, ${allErrors.size} errors")
+            plugin.logger.info(
+                "Config loading complete: ${loadedConfigs.size} successful, ${allErrors.size} errors, " +
+                    "${allWarnings.size} with warnings"
+            )
             configs.clear()
             configs.putAll(loadedConfigs)
             latestAvailabilityReport = availabilityReport.toReport()
             logAvailabilityReport(latestAvailabilityReport)
-            Pair(loadedConfigs, allErrors)
+            ConfigLoadResult(loadedConfigs, allErrors, allWarnings)
         }
     }
 
@@ -1155,6 +1227,11 @@ class ConfigManager(private val plugin: SneakyNPCs) {
         errorInfo.exception?.let {
             plugin.componentLogger.error(Component.text("Stack trace attached.", NamedTextColor.DARK_GRAY), it)
         }
+    }
+
+    private fun logValidationWarning(warningInfo: ConfigErrorInfo) {
+        plugin.componentLogger.warn(warningInfo.title)
+        warningInfo.errors.forEach(plugin.componentLogger::warn)
     }
 
     private fun ensureDataFolders() {
@@ -1187,6 +1264,7 @@ class ConfigManager(private val plugin: SneakyNPCs) {
         npcYaml: YamlConfiguration,
         shopDate: LocalDate = currentShopDate(),
         availabilityReport: ShopOfferAvailabilityReportAccumulator = ShopOfferAvailabilityReportAccumulator(shopDate),
+        warnings: MutableList<Component> = mutableListOf(),
     ): Pair<NPC, List<Component>> {
         val errors = ValidationErrors()
 
@@ -1203,7 +1281,7 @@ class ConfigManager(private val plugin: SneakyNPCs) {
         val rootMenuYaml = npcYaml.get("rootMenu")
         val rootMenuMap = asObjectMap(rootMenuYaml)
         val (rootMenu, menuErrors) = if (rootMenuMap != null) {
-            parseMenuNode(rootMenuMap, npcId, "rootMenu", shopDate, availabilityReport)
+            parseMenuNode(rootMenuMap, npcId, "rootMenu", shopDate, availabilityReport, warnings)
         } else {
             Pair(
                 null,
@@ -1309,6 +1387,7 @@ class ConfigManager(private val plugin: SneakyNPCs) {
         path: String,
         shopDate: LocalDate = currentShopDate(),
         availabilityReport: ShopOfferAvailabilityReportAccumulator = ShopOfferAvailabilityReportAccumulator(shopDate),
+        warnings: MutableList<Component> = mutableListOf(),
     ): Pair<NPCMenu?, List<Component>> {
         val rawType = menuYaml["type"]
         val type = rawType as? String ?: return Pair(
@@ -1330,11 +1409,11 @@ class ConfigManager(private val plugin: SneakyNPCs) {
         }
 
         return when (type.lowercase()) {
-            "selection" -> parseSelectionMenu(menuYaml, npcId, path, shopDate, availabilityReport)
+            "selection" -> parseSelectionMenu(menuYaml, npcId, path, shopDate, availabilityReport, warnings)
             "quest" -> parseQuestMenu(menuYaml, npcId, path)
             "shop" -> parseShopMenu(menuYaml, npcId, path, shopDate, availabilityReport)
             "custom" -> parseCustomMenu(menuYaml, npcId, path)
-            "external" -> parseExternalMenu(menuYaml, npcId, path)
+            "external" -> parseExternalMenu(menuYaml, path, warnings)
             "tailor" -> parseTailorMenu(menuYaml, path)
             "taxes" -> parseTaxesMenu(menuYaml, path)
             else -> Pair(null, listOf(validationDetail("$path.type", "Unknown menu type '$type'")))
@@ -1347,6 +1426,7 @@ class ConfigManager(private val plugin: SneakyNPCs) {
         path: String,
         shopDate: LocalDate = currentShopDate(),
         availabilityReport: ShopOfferAvailabilityReportAccumulator = ShopOfferAvailabilityReportAccumulator(shopDate),
+        warnings: MutableList<Component> = mutableListOf(),
     ): Pair<SelectionMenu?, List<Component>> {
         val errors = ValidationErrors()
         val allowedKeys = setOf("type", "gui", "options")
@@ -1382,6 +1462,7 @@ class ConfigManager(private val plugin: SneakyNPCs) {
                 "$path.options[$index]",
                 shopDate,
                 availabilityReport,
+                warnings,
             )
             errors.addAll(optionErrors)
             if (optionMenu != null) {
@@ -1826,14 +1907,16 @@ class ConfigManager(private val plugin: SneakyNPCs) {
         return Pair(CustomMenu(guiId), errors.toList())
     }
 
-    fun parseExternalMenu(menuYaml: Map<*, *>, npcId: String, path: String): Pair<ExternalMenu?, List<Component>> {
-        val (magicSpellId, errors) = parseExternalMenuConfig(menuYaml, path) { spellId ->
+    fun parseExternalMenu(
+        menuYaml: Map<*, *>,
+        path: String,
+        warnings: MutableList<Component>,
+    ): Pair<ExternalMenu?, List<Component>> {
+        val (action, errors, parseWarnings) = parseExternalMenuConfig(menuYaml, path) { spellId ->
             MagicSpells.getSpellByInternalName(spellId)
         }
-        if (magicSpellId == null) {
-            return Pair(null, errors)
-        }
-        return Pair(ExternalMenu(magicSpellId), errors)
+        warnings.addAll(parseWarnings)
+        return Pair(action?.let(::ExternalMenu), errors)
     }
 
     fun parseTailorMenu(menuYaml: Map<*, *>, path: String): Pair<TailorMenu?, List<Component>> {

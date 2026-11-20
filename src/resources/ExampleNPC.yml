@@ -92,7 +92,13 @@ rootMenu:
     - type: custom
       gui: borrow_horn
 
-# External menu example:
+# External menu examples. Each defines exactly one of 'magicspell' or 'command'.
+# A 'magicspell' id that MagicSpells doesn't have is a reload warning, not an error: the NPC
+# still loads and clicking the option only tells the player it is unavailable.
 # rootMenu:
 #   type: external
 #   magicspell: wizard_menu
+# A 'command' always runs from the console, after PlaceholderAPI placeholders are expanded:
+# rootMenu:
+#   type: external
+#   command: "nadiyaslots open %player_name%"

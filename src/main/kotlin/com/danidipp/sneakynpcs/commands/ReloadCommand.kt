@@ -51,7 +51,20 @@ object ReloadCommand {
                     ))
                 }
 
-                val statusColor = if (result.errors.isEmpty()) NamedTextColor.GREEN else NamedTextColor.YELLOW
+                if (result.warnings.isNotEmpty()) {
+                    sender.sendMessage(Component.join(JoinConfiguration.noSeparators(),
+                        plugin.prefix,
+                        Component.text(
+                            "Reload found ${result.warnings.size} warning groups. Warnings do not stop an NPC from loading.",
+                            NamedTextColor.YELLOW,
+                        ),
+                        Component.newline(),
+                        Component.join(JoinConfiguration.newlines(), result.warnings.map { it.asComponent() })
+                    ))
+                }
+
+                val statusColor =
+                    if (result.errors.isEmpty() && result.warnings.isEmpty()) NamedTextColor.GREEN else NamedTextColor.YELLOW
                 val availabilityReport = plugin.configManager.latestAvailabilityReport
                 sender.sendMessage(Component.join(JoinConfiguration.noSeparators(),
                     plugin.prefix,

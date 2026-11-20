@@ -148,9 +148,10 @@ class SneakyNPCs : JavaPlugin() {
                     return@handle
                 }
 
-                val (configs, errors) = loadResult ?: Pair(
+                val (configs, errors, warnings) = loadResult ?: ConfigLoadResult(
                     mutableMapOf<String, NPC>(),
-                    emptyList<ConfigErrorInfo>()
+                    emptyList(),
+                    emptyList(),
                 )
                 val loadedCount = configs.size
                 // Keep working NPCs when replacements fail validation; removed files stay removed.
@@ -174,7 +175,8 @@ class SneakyNPCs : JavaPlugin() {
                         loadedCount = loadedCount,
                         keptCount = keptCount,
                         errors = errors,
-                        throwable = null
+                        throwable = null,
+                        warnings = warnings,
                     ),
                     callback
                 )
@@ -220,6 +222,8 @@ class SneakyNPCs : JavaPlugin() {
         val keptCount: Int,
         val errors: List<ConfigErrorInfo>,
         val throwable: Throwable?,
+        /** Config warnings. Unlike [errors], they don't make reload keep the previous version of an NPC. */
+        val warnings: List<ConfigErrorInfo> = emptyList(),
     )
 
     private class MagicSpellsListener(private val plugin: SneakyNPCs) : Listener {

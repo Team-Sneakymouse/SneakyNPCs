@@ -149,7 +149,7 @@ A menu that opens a configured custom GUI by id.
 _Avoid_: External menu
 
 **External Menu**:
-A menu action that hands the player off to a MagicSpell-powered interaction.
+A menu action that hands the player off to an interaction outside SneakyNPCs, by casting a MagicSpell or running a console command.
 _Avoid_: Custom menu, spell menu
 
 **Tailor Menu**:

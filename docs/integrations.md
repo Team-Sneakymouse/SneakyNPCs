@@ -8,7 +8,12 @@ Currency IDs also occur in MagicItem stored-value PDC and persisted NPC Wallet b
 
 ## Commands and placeholders
 
-`ExternalMenu` invokes `ms cast as <Minecraft player name> <magicSpellId>` as console. `QuestMenu` invokes the `questcomplete` spell through the same command form after completing a Quest. These depend on the corresponding deployed MagicSpells definitions.
+`ExternalMenu` is configured with exactly one of `magicspell` or `command`:
+
+- `magicspell: <id>` invokes `ms cast as <Minecraft player name> <id>` as console. The spell is looked up on each click: if MagicSpells doesn't have it, the player is told the option is unavailable and nothing is dispatched. At reload an unknown id is a warning (listed in the reload summary as "has warnings"), not an error, so the NPC and its other options still load.
+- `command: "<command>"` dispatches the command as console after expanding PlaceholderAPI placeholders, for example `command: "nadiyaslots open %player_name%"`. There is no `asConsole` option: external commands always run from the console. Without PlaceholderAPI, a command that contains placeholders is not dispatched and the player is told to report it.
+
+`QuestMenu` invokes the `questcomplete` spell through the same command form after completing a Quest. These depend on the corresponding deployed MagicSpells definitions.
 
 Configured Quest command rewards choose console or player execution through `asConsole` and expand placeholders through PlaceholderAPI when available. Without PlaceholderAPI, the command is dispatched unchanged and unresolved placeholders produce a warning; there is no separate `%player%` replacement in SneakyNPCs.
 

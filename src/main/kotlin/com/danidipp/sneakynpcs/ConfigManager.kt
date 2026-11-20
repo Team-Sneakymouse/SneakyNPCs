@@ -886,6 +886,35 @@ internal fun parseShopStoredPriceAmount(
     return Pair(amount, emptyList())
 }
 
+/** Parses a shop item's `price: { currency, amount }`, which replaces the item's stored value as its buying price. */
+internal fun parseShopConfiguredPrice(
+    rawPrice: Any?,
+    path: String,
+    hasCurrency: (String) -> Boolean,
+): Pair<ShopPrice?, List<Component>> {
+    val priceMap = rawPrice as? Map<*, *>
+        ?: return Pair(null, listOf(validationDetail(path, "Must be an object with currency and amount")))
+    val errors = mutableListOf<Component>()
+    val unknownKeys = priceMap.keys.map { it.toString() }.filterNot { it == "currency" || it == "amount" }
+    if (unknownKeys.isNotEmpty()) {
+        errors.add(validationDetail(path, "Unknown price keys ${unknownKeys.joinToString(", ")}"))
+    }
+    val currencyId = (priceMap["currency"] as? String)?.takeIf { it.isNotBlank() }
+    if (currencyId == null) {
+        errors.add(validationDetail("$path.currency", "Missing or invalid field"))
+    } else if (!hasCurrency(currencyId)) {
+        errors.add(validationDetail("$path.currency", "Unknown currency '$currencyId'"))
+    }
+    val amount = (priceMap["amount"] as? Int)
+    if (amount == null) {
+        errors.add(validationDetail("$path.amount", "Missing or invalid field (expected a whole number)"))
+    } else if (amount < 0) {
+        errors.add(validationDetail("$path.amount", "Must be >= 0 (got $amount)"))
+    }
+    if (errors.isNotEmpty() || currencyId == null || amount == null) return Pair(null, errors)
+    return Pair(ShopPrice(currencyId = currencyId, amount = amount), emptyList())
+}
+
 internal fun parseShopOfferAvailabilityConfig(
     rawAvailability: Any?,
     path: String,
@@ -1769,7 +1798,7 @@ class ConfigManager(private val plugin: SneakyNPCs) {
 
     internal fun parseShopMenuItem(itemYaml: Map<*, *>, npcId: String, path: String): Pair<ParsedShopMenuItem?, List<Component>> {
         val errors = ValidationErrors()
-        val allowedKeys = setOf("item", "buyStacks", "requirements", "limits", "availability")
+        val allowedKeys = setOf("item", "buyStacks", "requirements", "limits", "availability", "price")
         val unknownKeys = itemYaml.keys.filterIsInstance<String>().filterNot { it in allowedKeys }
         if (unknownKeys.isNotEmpty()) {
             errors.add(path, "Unknown item keys ${unknownKeys.joinToString(", ")}")
@@ -1821,35 +1850,52 @@ class ConfigManager(private val plugin: SneakyNPCs) {
             }
         }
 
-        val itemMeta = magicItem.itemStack.itemMeta ?: run {
-            errors.add(path, "Magic item '$itemId' has no item meta for pricing")
-            return Pair(null, errors)
-        }
-        val pdc = itemMeta.persistentDataContainer
-        val currencyId = pdc.get(storeCurrencyKey, PersistentDataType.STRING)?.takeIf { it.isNotBlank() } ?: run {
-            val msKey = storeCurrencyKey.toString().substringAfter("_")
-            errors.add("$path.price.currency", "Missing price currency PDC '$msKey' on '$itemId'")
-            return Pair(null, errors)
-        }
-        if (!plugin.currencyGraphService.hasCurrency(currencyId)) {
-            errors.add("$path.price.currency", "Unknown currency '$currencyId' in item '$itemId'")
-            return Pair(null, errors)
-        }
+        // A configured price is for buying only: selling still reads the item's stored value, so an item
+        // without one (a SneakyPlots deed) stays unsellable.
+        val priceFromConfig = itemYaml["price"] != null
+        val price = if (priceFromConfig) {
+            val (configuredPrice, priceErrors) = parseShopConfiguredPrice(
+                rawPrice = itemYaml["price"],
+                path = "$path.price",
+                hasCurrency = plugin.currencyGraphService::hasCurrency,
+            )
+            if (priceErrors.isNotEmpty() || configuredPrice == null) {
+                errors.addAll(priceErrors)
+                return Pair(null, errors)
+            }
+            configuredPrice
+        } else {
+            val itemMeta = magicItem.itemStack.itemMeta ?: run {
+                errors.add(path, "Magic item '$itemId' has no item meta for pricing")
+                return Pair(null, errors)
+            }
+            val pdc = itemMeta.persistentDataContainer
+            val currencyId = pdc.get(storeCurrencyKey, PersistentDataType.STRING)?.takeIf { it.isNotBlank() } ?: run {
+                val msKey = storeCurrencyKey.toString().substringAfter("_")
+                errors.add("$path.price.currency", "Missing price currency PDC '$msKey' on '$itemId'")
+                return Pair(null, errors)
+            }
+            if (!plugin.currencyGraphService.hasCurrency(currencyId)) {
+                errors.add("$path.price.currency", "Unknown currency '$currencyId' in item '$itemId'")
+                return Pair(null, errors)
+            }
 
-        val amountRaw = pdc.get(storeAmountKey, PersistentDataType.STRING) ?: run {
-            val msKey = storeAmountKey.toString().substringAfter("_")
-            errors.add("$path.price.amount", "Missing price amount PDC '$msKey' on '$itemId'")
-            return Pair(null, errors)
-        }
-        val (amount, amountErrors) = parseShopStoredPriceAmount(
-            amountRaw = amountRaw,
-            path = path,
-            itemId = itemId,
-            pdcKeyName = storeAmountKey.toString().substringAfter("_"),
-        )
-        if (amountErrors.isNotEmpty() || amount == null) {
-            errors.addAll(amountErrors)
-            return Pair(null, errors)
+            val amountRaw = pdc.get(storeAmountKey, PersistentDataType.STRING) ?: run {
+                val msKey = storeAmountKey.toString().substringAfter("_")
+                errors.add("$path.price.amount", "Missing price amount PDC '$msKey' on '$itemId'")
+                return Pair(null, errors)
+            }
+            val (amount, amountErrors) = parseShopStoredPriceAmount(
+                amountRaw = amountRaw,
+                path = path,
+                itemId = itemId,
+                pdcKeyName = storeAmountKey.toString().substringAfter("_"),
+            )
+            if (amountErrors.isNotEmpty() || amount == null) {
+                errors.addAll(amountErrors)
+                return Pair(null, errors)
+            }
+            ShopPrice(currencyId = currencyId, amount = amount)
         }
 
         val (limits, limitErrors) = when (val rawLimits = itemYaml["limits"]) {
@@ -1878,7 +1924,8 @@ class ConfigManager(private val plugin: SneakyNPCs) {
                     stockEntryId = buildShopStockEntryId(path, itemId),
                     buyStacks = buyStacks,
                     requirements = requirements,
-                    price = ShopPrice(currencyId = currencyId, amount = amount),
+                    price = price,
+                    priceFromConfig = priceFromConfig,
                     limits = limits,
                 ),
                 offerId = buildShopOfferId(npcId, path.substringBeforeLast(".items["), itemId),

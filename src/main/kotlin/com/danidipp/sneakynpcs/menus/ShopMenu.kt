@@ -33,6 +33,8 @@ data class ShopMenuItem(
     val buyStacks: Boolean,
     val requirements: List<ShopItemRequirement>,
     val price: ShopPrice,
+    /** The price comes from the NPC config, so the item's own lore doesn't show it: the shop adds a cost line. */
+    val priceFromConfig: Boolean = false,
     val limits: ShopItemLimitConfig?,
 )
 
@@ -194,6 +196,7 @@ class ShopMenu(
         shopItem: ShopMenuItem,
     ): ItemStack {
         val stack = shopItem.magicItem.itemStack.clone()
+        if (shopItem.priceFromConfig) addCostLine(stack, shopItem.price)
         val limits = shopItem.limits ?: return stack
         val resolvedPlayerData = playerData ?: return stack.apply {
             amount = minOf(limits.maxQuantity, maxStackSize.coerceAtLeast(1))
@@ -213,6 +216,17 @@ class ShopMenu(
 
         stack.amount = minOf(remainingQuantity, stack.maxStackSize.coerceAtLeast(1))
         return stack
+    }
+
+    private fun addCostLine(stack: ItemStack, price: ShopPrice) {
+        stack.editMeta { meta ->
+            val costLine = Component.text()
+                .decoration(TextDecoration.ITALIC, false)
+                .append(Component.text("Cost: ", NamedTextColor.GRAY))
+                .append(Component.text("${price.amount} ${ShopMessageFormatter.formatCurrencyId(price.currencyId)}", NamedTextColor.GOLD))
+                .build()
+            meta.lore((meta.lore() ?: emptyList()) + costLine)
+        }
     }
 
     fun onPlayerInventoryClick(gui: NPCGui, event: InventoryClickEvent) {

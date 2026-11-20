@@ -34,7 +34,10 @@ Reverse exchange is auto-generated from configured forward links.
 - `item` (MagicItem id)
 - `buyStacks` (bool, default false)
 - `requirements` (optional list of `{ variable, min, hideOffer }`; `hideOffer` defaults false)
-- `price` (derived from item PDC, not from NPC config)
+- `price` (optional `{ currency, amount }`; `amount` a whole number >= 0). Without it the price is derived from the
+  item PDC (`store_value_currency` / `store_value_amount`). A configured price only sets what the shop charges: the
+  shop adds a "Cost:" line to the offer, and selling still uses the item's stored value, so an item without one
+  (such as a SneakyPlots deed) stays unsellable.
 
 ## Config Layout
 ### `currencies.yml` (top-level)

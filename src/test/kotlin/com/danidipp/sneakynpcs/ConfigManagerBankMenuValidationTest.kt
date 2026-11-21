@@ -85,7 +85,7 @@ class ConfigManagerBankMenuValidationTest {
         assertEquals(
             listOf(
                 " - rootMenu.gates.notes: Required variable 'missingFlag' is not configured",
-                " - rootMenu: Bank currency 'penny' must define both an item and a bank variable",
+                " - rootMenu: Currency 'penny' must define both an item and a bank variable",
                 " - rootMenu: Required variable 'bankLoanGold' is not configured",
                 " - rootMenu: Required MagicItem 'item-goldNote1m' is not configured",
                 " - rootMenu: Required MagicItem 'item-holyWrit' is not configured",

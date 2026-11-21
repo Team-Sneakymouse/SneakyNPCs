@@ -52,29 +52,16 @@ class BankService(private val plugin: SneakyNPCs) {
         else "You haven't unlocked that yet."
 
     fun depositCoins(player: Player, coin: BankCoin, limit: Long): BankOutcome {
-        val currency = currency(coin.currencyId) ?: return misconfigured()
-        val itemId = currency.itemId ?: return misconfigured()
-        val variable = currency.variableId ?: return misconfigured()
-        val amount = minOf(limit, carried(player, itemId))
-        if (amount <= 0L) return BankOutcome.failed("You don't have any ${coin.plural} on you.")
-
-        val loan = loan(player, coin)
-        val split = BankRules.depositSplit(amount, loan)
-        val balance = balances.getBankCurrencyUnits(player, currency)
-        if (!BankRules.fits(balance, split.credited, Variables.maxNumber(player, variable))) {
-            return BankOutcome.failed("Your bank account can't hold that many ${coin.plural}.")
+        return when (val result = depositCoinStacks(player, coin, limit)) {
+            is CoinDeposit.Refused -> result.outcome
+            is CoinDeposit.Deposited -> when {
+                result.split.repaid <= 0L -> BankOutcome.done()
+                result.loanLeft <= 0L -> BankOutcome.done("Your ${coin.name} loan is paid off!")
+                else -> BankOutcome.done(
+                    "You paid ${amount(result.split.repaid)} ${coin.plural} towards your loan. ${amount(result.loanLeft)} left."
+                )
+            }
         }
-        if (!balances.removeItems(player, itemId, amount)) return misconfigured()
-        if (split.repaid > 0L) Variables.setNumber(player, coin.loanVariable, (loan - split.repaid).toDouble())
-        balances.setBankCurrencyUnits(player, currency, balance + split.credited)
-        logRemoved(player, currency.itemMagicItem?.itemStack, amount)
-
-        if (split.repaid <= 0L) return BankOutcome.done()
-        val left = loan - split.repaid
-        return BankOutcome.done(
-            if (left <= 0L) "Your ${coin.name} loan is paid off!"
-            else "You paid ${amount(split.repaid)} ${coin.plural} towards your loan. ${amount(left)} left."
-        )
     }
 
     fun withdrawCoins(player: Player, coin: BankCoin, limit: Long): BankOutcome {
@@ -83,22 +70,13 @@ class BankService(private val plugin: SneakyNPCs) {
         val balance = balances.getBankCurrencyUnits(player, currency)
         if (balance <= 0L) return BankOutcome.failed("You don't have any ${coin.plural} in the bank.")
         val amount = balances.fitCount(player.inventory, template, minOf(limit, balance))
-        if (amount <= 0L) return BankOutcome.failed("Your inventory is full.")
-
-        balances.setBankCurrencyUnits(player, currency, balance - amount)
-        if (!balances.addItems(player, template, amount)) {
-            balances.setBankCurrencyUnits(player, currency, balance)
-            return misconfigured()
-        }
-        plugin.inventoryTransactionLogger.log(player, addedItems = InventoryAuditItems.split(template, amount))
-        return BankOutcome.done()
+        return giveFromBalance(player, currency, balance, template, amount, unitValue = 1L)
     }
 
     fun depositNotes(player: Player, coin: BankCoin, note: BankNote, limit: Long): BankOutcome {
         val count = minOf(limit, carried(player, note.itemId))
         if (count <= 0L) return BankOutcome.failed("You don't have a ${note.label} ${coin.name} note.")
-        val credited = depositNoteStacks(player, coin, note, count)
-            ?: return BankOutcome.failed("Your bank account can't hold that many ${coin.plural}.")
+        val credited = depositNoteStacks(player, coin, note, count) ?: return accountFull(coin)
         return BankOutcome.done("You deposited ${amount(credited)} ${coin.plural} into your bank account!")
     }
 
@@ -110,18 +88,14 @@ class BankService(private val plugin: SneakyNPCs) {
 
         for (coin in BankRules.COINS) {
             if (includeCoins) {
-                val currency = currency(coin.currencyId) ?: return misconfigured()
-                val itemId = currency.itemId ?: return misconfigured()
-                val carried = carried(player, itemId)
-                if (carried > 0L) {
-                    val loanBefore = loan(player, coin)
-                    val balanceBefore = balances.getBankCurrencyUnits(player, currency)
-                    val outcome = depositCoins(player, coin, carried)
-                    if (outcome.ok) {
-                        repaid.merge(coin, loanBefore - loan(player, coin), Long::plus)
-                        credited.merge(coin, balances.getBankCurrencyUnits(player, currency) - balanceBefore, Long::plus)
-                    } else {
-                        full += coin
+                val itemId = currency(coin.currencyId)?.itemId ?: return misconfigured()
+                if (carried(player, itemId) > 0L) {
+                    when (val result = depositCoinStacks(player, coin, Long.MAX_VALUE)) {
+                        is CoinDeposit.Deposited -> {
+                            repaid.merge(coin, result.split.repaid, Long::plus)
+                            credited.merge(coin, result.split.credited, Long::plus)
+                        }
+                        is CoinDeposit.Refused -> full += coin
                     }
                 }
             }
@@ -135,18 +109,18 @@ class BankService(private val plugin: SneakyNPCs) {
 
         val parts = credited.filterValues { it > 0L }.map { (coin, value) -> "${amount(value)} ${coin.plural}" } +
             repaid.filterValues { it > 0L }.map { (coin, value) -> "${amount(value)} ${coin.plural} to your loan" }
-        val fullNote = full.distinct().takeIf { it.isNotEmpty() }
+        val accountFullMessage = full.distinct().takeIf { it.isNotEmpty() }
             ?.let { coins -> " Your bank account couldn't hold all your ${coins.joinToString(", ") { it.plural }}." }
             .orEmpty()
         if (parts.isEmpty()) {
-            if (fullNote.isNotEmpty()) return BankOutcome.failed(fullNote.trim())
+            if (accountFullMessage.isNotEmpty()) return BankOutcome.failed(accountFullMessage.trim())
             return BankOutcome.failed(if (includeCoins) "You have no coins or bank notes to deposit." else "You have no bank notes to deposit.")
         }
-        return BankOutcome.done("You deposited ${parts.joinToString(", ")}.$fullNote")
+        return BankOutcome.done("You deposited ${parts.joinToString(", ")}.$accountFullMessage")
     }
 
     fun withdrawNotes(player: Player, coin: BankCoin, note: BankNote, limit: Long, gate: BankGate?): BankOutcome {
-        if (!passes(player, gate)) return BankOutcome.failed(gateMessage(gate!!))
+        gateFailure(player, gate)?.let { return it }
         val currency = currency(coin.currencyId) ?: return misconfigured()
         val template = MagicItems.getMagicItemByInternalName(note.itemId)?.itemStack ?: return misconfigured()
         val balance = balances.getBankCurrencyUnits(player, currency)
@@ -155,19 +129,11 @@ class BankService(private val plugin: SneakyNPCs) {
         }
         val space = balances.fitCount(player.inventory, template, limit)
         val count = BankRules.noteWithdrawCount(limit, balance, note.value, space)
-        if (count <= 0L) return BankOutcome.failed("Your inventory is full.")
-
-        balances.setBankCurrencyUnits(player, currency, balance - count * note.value)
-        if (!balances.addItems(player, template, count)) {
-            balances.setBankCurrencyUnits(player, currency, balance)
-            return misconfigured()
-        }
-        plugin.inventoryTransactionLogger.log(player, addedItems = InventoryAuditItems.split(template, count))
-        return BankOutcome.done()
+        return giveFromBalance(player, currency, balance, template, count, unitValue = note.value)
     }
 
     fun takeLoan(player: Player, coin: BankCoin, gate: BankGate?): BankOutcome {
-        if (!passes(player, gate)) return BankOutcome.failed(gateMessage(gate!!))
+        gateFailure(player, gate)?.let { return it }
         val currency = currency(coin.currencyId) ?: return misconfigured()
         val variable = currency.variableId ?: return misconfigured()
         if (loan(player, coin) > 0L) {
@@ -193,7 +159,7 @@ class BankService(private val plugin: SneakyNPCs) {
 
     /** Exchanges banked coins for [quantity] of the next coin up, or as many as possible when [quantity] is null. */
     fun exchange(player: Player, exchange: BankExchange, quantity: Long?, gate: BankGate?): BankOutcome {
-        if (!passes(player, gate)) return BankOutcome.failed(gateMessage(gate!!))
+        gateFailure(player, gate)?.let { return it }
         val from = currency(exchange.from.currencyId) ?: return misconfigured()
         val to = currency(exchange.to.currencyId) ?: return misconfigured()
         val toVariable = to.variableId ?: return misconfigured()
@@ -220,6 +186,57 @@ class BankService(private val plugin: SneakyNPCs) {
         val message = outcome.message ?: return
         player.sendMessage(Component.text(message, if (outcome.ok) NamedTextColor.GREEN else NamedTextColor.RED))
     }
+
+    private sealed interface CoinDeposit {
+        data class Deposited(val split: DepositSplit, val loanLeft: Long) : CoinDeposit
+        data class Refused(val outcome: BankOutcome) : CoinDeposit
+    }
+
+    /** Deposits up to [limit] carried coins, paying off the coin's loan first. */
+    private fun depositCoinStacks(player: Player, coin: BankCoin, limit: Long): CoinDeposit {
+        val currency = currency(coin.currencyId) ?: return CoinDeposit.Refused(misconfigured())
+        val itemId = currency.itemId ?: return CoinDeposit.Refused(misconfigured())
+        val variable = currency.variableId ?: return CoinDeposit.Refused(misconfigured())
+        val amount = minOf(limit, carried(player, itemId))
+        if (amount <= 0L) return CoinDeposit.Refused(BankOutcome.failed("You don't have any ${coin.plural} on you."))
+
+        val loan = loan(player, coin)
+        val split = BankRules.depositSplit(amount, loan)
+        val balance = balances.getBankCurrencyUnits(player, currency)
+        if (!BankRules.fits(balance, split.credited, Variables.maxNumber(player, variable))) {
+            return CoinDeposit.Refused(accountFull(coin))
+        }
+        if (!balances.removeItems(player, itemId, amount)) return CoinDeposit.Refused(misconfigured())
+        if (split.repaid > 0L) Variables.setNumber(player, coin.loanVariable, (loan - split.repaid).toDouble())
+        balances.setBankCurrencyUnits(player, currency, balance + split.credited)
+        logRemoved(player, currency.itemMagicItem?.itemStack, amount)
+        return CoinDeposit.Deposited(split, loanLeft = loan - split.repaid)
+    }
+
+    /**
+     * Gives up to [count] copies of [template] and takes [unitValue] from the balance for each one that arrived.
+     * Items are given first, so a player is never charged for items that didn't fit.
+     */
+    private fun giveFromBalance(
+        player: Player,
+        currency: CurrencyDefinition,
+        balance: Long,
+        template: ItemStack,
+        count: Long,
+        unitValue: Long,
+    ): BankOutcome {
+        if (count <= 0L) return BankOutcome.failed("Your inventory is full.")
+        val delivered = balances.giveItems(player, template, count)
+        if (delivered <= 0L) return BankOutcome.failed("Your inventory is full.")
+        balances.setBankCurrencyUnits(player, currency, balance - delivered * unitValue)
+        plugin.inventoryTransactionLogger.log(player, addedItems = InventoryAuditItems.split(template, delivered))
+        return BankOutcome.done()
+    }
+
+    private fun gateFailure(player: Player, gate: BankGate?): BankOutcome? =
+        if (gate == null || passes(player, gate)) null else BankOutcome.failed(gateMessage(gate))
+
+    private fun accountFull(coin: BankCoin) = BankOutcome.failed("Your bank account can't hold that many ${coin.plural}.")
 
     /** Deposits [count] notes and returns the value credited, or null if the balance can't hold it. */
     private fun depositNoteStacks(player: Player, coin: BankCoin, note: BankNote, count: Long): Long? {

@@ -97,7 +97,26 @@ class BalanceService {
         return addItems(player, template, amount)
     }
 
-    /** Gives [amount] copies of [template], or nothing if they don't all fit. */
+    /**
+     * Gives up to [amount] copies of [template] and returns how many the player actually received, so a
+     * caller can charge for exactly those and never pay for items that didn't arrive.
+     */
+    fun giveItems(player: Player, template: ItemStack, amount: Long): Long {
+        if (amount <= 0L) return 0L
+        var delivered = 0L
+        var remaining = amount
+        while (remaining > 0L) {
+            val nextAmount = minOf(template.maxStackSize.coerceAtLeast(1).toLong(), remaining).toInt()
+            val leftovers = player.inventory.addItem(template.clone().apply { this.amount = nextAmount })
+            val received = nextAmount - leftovers.values.sumOf { it.amount }
+            delivered += received
+            remaining -= nextAmount
+            if (received < nextAmount) break
+        }
+        return delivered
+    }
+
+    /** Gives [amount] copies of [template]. Checks for room first, but can stop partway and return false. */
     fun addItems(player: Player, template: ItemStack, amount: Long): Boolean {
         if (amount <= 0L) return true
         if (amount > Int.MAX_VALUE) return false

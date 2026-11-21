@@ -573,9 +573,9 @@ internal fun parseBankMenuSettings(
     for (coin in BankRules.COINS) {
         val currency = currencyLookup.getCurrency(coin.currencyId)
         when {
-            currency == null -> errors.add(path, "Bank currency '${coin.currencyId}' is not configured in currencies.yml")
+            currency == null -> errors.add(path, "Currency '${coin.currencyId}' is not configured in currencies.yml")
             currency.itemId == null || currency.variableId == null ->
-                errors.add(path, "Bank currency '${coin.currencyId}' must define both an item and a bank variable")
+                errors.add(path, "Currency '${coin.currencyId}' must define both an item and a bank variable")
         }
         if (!hasVariable(coin.loanVariable)) errors.add(path, "Required variable '${coin.loanVariable}' is not configured")
         for (note in coin.notes) {
@@ -584,7 +584,7 @@ internal fun parseBankMenuSettings(
     }
     for (display in BankRules.DISPLAY_BALANCES) {
         if (currencyLookup.getCurrency(display.currencyId)?.variableId == null) {
-            errors.add(path, "Bank currency '${display.currencyId}' must be configured with a bank variable")
+            errors.add(path, "Currency '${display.currencyId}' must be configured with a bank variable")
         }
     }
     for (exchange in BankRules.EXCHANGES) {

@@ -48,7 +48,7 @@ dependencies {
 	compileOnly("io.github.team-sneakymouse:magicspells:2026.11.08-eca39854a666") {
 		isTransitive = false
 	}
-	compileOnly("io.github.team-sneakymouse:sneakyitems:2026.11.18-8682c12c983d")
+	compileOnly("io.github.team-sneakymouse:sneakyitems:2026.11.20-b1b03c4a324f")
 	compileOnly("io.github.team-sneakymouse:sneakyutils:2026.11.10-7e1262ebd376")
 	compileOnly("io.github.team-sneakymouse:sneakyvariables:$sneakyVariablesVersion")
 	// Bank: right-clicking a note in the bank region deposits it; optional at runtime
@@ -61,13 +61,13 @@ dependencies {
 	testCompileOnly("io.github.team-sneakymouse:magicspells:2026.11.08-eca39854a666") {
 		isTransitive = false
 	}
-	testCompileOnly("io.github.team-sneakymouse:sneakyitems:2026.11.18-8682c12c983d")
+	testCompileOnly("io.github.team-sneakymouse:sneakyitems:2026.11.20-b1b03c4a324f")
 	testCompileOnly("io.github.team-sneakymouse:sneakyvariables:$sneakyVariablesVersion")
 	testRuntimeOnly("io.papermc.paper:paper-api:26.2.build.121-stable")
 	testRuntimeOnly("io.github.team-sneakymouse:magicspells:2026.11.08-eca39854a666") {
 		isTransitive = false
 	}
-	testRuntimeOnly("io.github.team-sneakymouse:sneakyitems:2026.11.18-8682c12c983d")
+	testRuntimeOnly("io.github.team-sneakymouse:sneakyitems:2026.11.20-b1b03c4a324f")
 }
 
 tasks.processResources {

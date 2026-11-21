@@ -9,7 +9,7 @@ A configured in-game persona that players interact with through menus, shops, qu
 _Avoid_: Mob, entity, villager, character
 
 **Menu**:
-A player-facing interaction screen or action node attached to an NPC. Menus include selection, quest, shop, custom, external, tailor, and taxes interactions.
+A player-facing interaction screen or action node attached to an NPC. Menus include selection, quest, shop, custom, external, tailor, taxes, and bank interactions.
 _Avoid_: GUI, inventory screen
 
 **Root Menu**:

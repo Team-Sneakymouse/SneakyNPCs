@@ -33,6 +33,12 @@ class BankService(private val plugin: SneakyNPCs) {
         return balances.getBankCurrencyUnits(player, currency)
     }
 
+    /** What [display] shows for [player], or null when its variable isn't defined and the slot stays empty. */
+    fun displayBalance(player: Player, display: BankDisplayBalance): Long? {
+        if (!Variables.defined(display.variable)) return null
+        return Variables.getNumber(player, display.variable).toLong().coerceAtLeast(0L)
+    }
+
     fun loan(player: Player, coin: BankCoin): Long =
         Variables.getNumber(player, coin.loanVariable).toLong().coerceAtLeast(0L)
 

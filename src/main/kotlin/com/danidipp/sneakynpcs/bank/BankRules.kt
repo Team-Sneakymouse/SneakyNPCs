@@ -23,9 +23,12 @@ data class BankCoin(
     val notes: List<BankNote>,
 )
 
-/** A balance the bank shows but doesn't let players move. */
+/**
+ * A balance the bank shows but doesn't let players move. It reads [variable] directly, so it needs no currency
+ * in currencies.yml; the bank leaves its slot empty when the variable isn't defined.
+ */
 data class BankDisplayBalance(
-    val currencyId: String,
+    val variable: String,
     val plural: String,
     val model: String,
     val lore: List<String> = emptyList(),
@@ -58,10 +61,10 @@ object BankRules {
     val COINS = listOf(PENNY, SILVER, GOLD)
 
     val DISPLAY_BALANCES = listOf(
-        BankDisplayBalance("diamond", "Diamonds", "lom:coin_diamond"),
-        BankDisplayBalance("mythril", "Mythril", "lom:coin_mithril"),
+        BankDisplayBalance("bankDiamond", "Diamonds", "lom:coin_diamond"),
+        BankDisplayBalance("bankMythril", "Mythril", "lom:coin_mithril"),
         BankDisplayBalance(
-            "dragoncoins", "Dragon Coins", "lom:items/dragoncoin_3d",
+            "bankDragonCoin", "Dragon Coins", "lom:items/dragoncoin_3d",
             listOf("<gray>You cannot withdraw <gold>Dragon Coins", "<gray>as you are too weak to hold them."),
         ),
     )

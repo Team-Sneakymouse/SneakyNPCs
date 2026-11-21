@@ -582,11 +582,6 @@ internal fun parseBankMenuSettings(
             if (!hasItem(note.itemId)) errors.add(path, "Required MagicItem '${note.itemId}' is not configured")
         }
     }
-    for (display in BankRules.DISPLAY_BALANCES) {
-        if (currencyLookup.getCurrency(display.currencyId)?.variableId == null) {
-            errors.add(path, "Currency '${display.currencyId}' must be configured with a bank variable")
-        }
-    }
     for (exchange in BankRules.EXCHANGES) {
         val from = currencyLookup.getCurrency(exchange.from.currencyId) ?: continue
         if (from.exchangeToCurrency != exchange.to.currencyId || (from.exchangeRate ?: 0) <= 0) {

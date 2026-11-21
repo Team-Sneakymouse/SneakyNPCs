@@ -99,10 +99,11 @@ class BankMenu(config: BankMenuConfig) : BankPage(config, "lom:gui/bankui1") {
         val inv = gui.inventory
         for ((slot, coin) in COIN_SLOTS.zip(BankRules.COINS)) inv.setItem(slot, coinItem(player, bank, coin))
         for ((slot, display) in DISPLAY_SLOTS.zip(BankRules.DISPLAY_BALANCES)) {
+            val balance = bank.displayBalance(player, display) ?: continue
             inv.setItem(slot, button(
                 display.model,
                 "<gold>${display.plural}",
-                listOf("<gold>${display.plural}: <aqua>${amount(bank.balance(player, display.currencyId))}") + display.lore,
+                listOf("<gold>${display.plural}: <aqua>${amount(balance)}") + display.lore,
             ))
         }
         inv.setItem(NOTES_SLOT, button("lom:gui/icons/banknote", "<gold>Bank Notes", listOfNotNull(

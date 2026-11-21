@@ -102,3 +102,13 @@ rootMenu:
 # rootMenu:
 #   type: external
 #   command: "nadiyaslots open %player_name%"
+
+# Bank menu: deposit and withdraw coins, bank notes, loans and exchanges (Lionel Barringster's "Access Bank Account").
+# Every key is optional; these are the defaults.
+# rootMenu:
+#   type: bank
+#   gates:                 # a player variable that must not be 0; false removes the gate
+#     notes: skillTradingTier6A      # withdrawing bank notes (Bank Voucher)
+#     loans: skillTradingTier3A      # Loans License
+#     exchanges: skillTradingTier9C  # Trade Mule
+#   noteDepositRegion: world:bank    # right-clicking a note here deposits it; false turns it off

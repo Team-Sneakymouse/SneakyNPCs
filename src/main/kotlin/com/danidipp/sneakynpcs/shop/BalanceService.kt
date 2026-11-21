@@ -17,6 +17,11 @@ class BalanceService {
 
     fun getInventoryCurrencyUnits(player: Player, currency: CurrencyDefinition): Long {
         val itemId = currency.itemId ?: return 0L
+        return countItems(player, itemId)
+    }
+
+    /** How many items with MagicItem id [itemId] the player carries. */
+    fun countItems(player: Player, itemId: String): Long {
         var total = 0L
         for (stack in player.inventory.contents) {
             if (stack == null || !matchesCurrency(stack, itemId)) continue
@@ -53,6 +58,12 @@ class BalanceService {
     fun removeInventoryCurrencyUnits(player: Player, currency: CurrencyDefinition, amount: Long): Boolean {
         if (amount <= 0L) return true
         val itemId = currency.itemId ?: return false
+        return removeItems(player, itemId, amount)
+    }
+
+    /** Removes [amount] items with MagicItem id [itemId], or nothing if the player has fewer. */
+    fun removeItems(player: Player, itemId: String, amount: Long): Boolean {
+        if (amount <= 0L) return true
         val inventory = player.inventory
         val removable = mutableListOf<Pair<Int, Int>>()
         var remaining = amount
@@ -82,10 +93,33 @@ class BalanceService {
     }
 
     fun addInventoryCurrencyUnits(player: Player, currency: CurrencyDefinition, amount: Long): Boolean {
+        val template = currency.itemMagicItem?.itemStack ?: return amount <= 0L
+        return addItems(player, template, amount)
+    }
+
+    /**
+     * Gives up to [amount] copies of [template] and returns how many the player actually received, so a
+     * caller can charge for exactly those and never pay for items that didn't arrive.
+     */
+    fun giveItems(player: Player, template: ItemStack, amount: Long): Long {
+        if (amount <= 0L) return 0L
+        var delivered = 0L
+        var remaining = amount
+        while (remaining > 0L) {
+            val nextAmount = minOf(template.maxStackSize.coerceAtLeast(1).toLong(), remaining).toInt()
+            val leftovers = player.inventory.addItem(template.clone().apply { this.amount = nextAmount })
+            val received = nextAmount - leftovers.values.sumOf { it.amount }
+            delivered += received
+            remaining -= nextAmount
+            if (received < nextAmount) break
+        }
+        return delivered
+    }
+
+    /** Gives [amount] copies of [template]. Checks for room first, but can stop partway and return false. */
+    fun addItems(player: Player, template: ItemStack, amount: Long): Boolean {
         if (amount <= 0L) return true
         if (amount > Int.MAX_VALUE) return false
-
-        val template = currency.itemMagicItem?.itemStack ?: return false
         if (!canFitItem(player.inventory, template, amount.toInt())) return false
 
         var remaining = amount.toInt()
@@ -97,6 +131,22 @@ class BalanceService {
             remaining -= nextAmount
         }
         return true
+    }
+
+    /** How many copies of [item], up to [limit], fit in the inventory's storage slots. */
+    fun fitCount(inventory: Inventory, item: ItemStack, limit: Long): Long {
+        if (limit <= 0L) return 0L
+        val maxStack = item.maxStackSize.coerceAtLeast(1).toLong()
+        var space = 0L
+        for (stack in inventory.storageContents) {
+            space += when {
+                stack == null || stack.type.isAir -> maxStack
+                stack.isSimilar(item) -> (stack.maxStackSize - stack.amount).coerceAtLeast(0).toLong()
+                else -> 0L
+            }
+            if (space >= limit) return limit
+        }
+        return space
     }
 
     fun canFitItem(inventory: Inventory, item: ItemStack, amount: Int): Boolean {

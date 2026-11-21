@@ -1,5 +1,7 @@
 package com.danidipp.sneakynpcs
 
+import com.danidipp.sneakynpcs.bank.BankNoteListener
+import com.danidipp.sneakynpcs.bank.BankService
 import com.danidipp.sneakynpcs.shop.BalanceService
 import com.danidipp.sneakynpcs.shop.CurrencyGraphService
 import com.danidipp.sneakynpcs.shop.NpcWalletService
@@ -35,6 +37,7 @@ class SneakyNPCs : JavaPlugin() {
     lateinit var inventoryTransactionLogger: InventoryTransactionLogger
     lateinit var shopTransactionService: ShopTransactionService
     lateinit var questDebugService: QuestDebugService
+    lateinit var bankService: BankService
     val npcs = mutableMapOf<String, NPC>()
     private val configReloadInProgress = AtomicBoolean(false)
 
@@ -65,6 +68,7 @@ class SneakyNPCs : JavaPlugin() {
             shopItemStockService,
             inventoryTransactionLogger,
         )
+        bankService = BankService(this)
 
         //commands
         @Suppress("UnstableApiUsage")
@@ -79,6 +83,7 @@ class SneakyNPCs : JavaPlugin() {
         Bukkit.getServer().pluginManager.registerEvents(persistenceManager, this)
         Bukkit.getServer().pluginManager.registerEvents(questDebugService, this)
         Bukkit.getServer().pluginManager.registerEvents(MagicSpellsListener(this), this)
+        Bukkit.getServer().pluginManager.registerEvents(BankNoteListener(this), this)
 
         logger.info("Plugin initialized. Waiting for MagicSpellsLoadedEvent before loading NPC configs.")
 

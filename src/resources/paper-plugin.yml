@@ -30,3 +30,7 @@ dependencies:
     PlaceholderAPI:
       load: BEFORE
       required: false
+    WorldGuard:
+      load: BEFORE
+      required: false
+      join-classpath: true

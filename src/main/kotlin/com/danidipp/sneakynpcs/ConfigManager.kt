@@ -1,5 +1,11 @@
 package com.danidipp.sneakynpcs
 
+import com.danidipp.sneakynpcs.bank.BankFeature
+import com.danidipp.sneakynpcs.bank.BankGate
+import com.danidipp.sneakynpcs.bank.BankMenuConfig
+import com.danidipp.sneakynpcs.bank.BankRegion
+import com.danidipp.sneakynpcs.bank.BankRules
+import com.danidipp.sneakynpcs.menus.BankMenu
 import com.danidipp.sneakynpcs.menus.CustomMenu
 import com.danidipp.sneakynpcs.menus.ExternalMenu
 import com.danidipp.sneakynpcs.menus.ExternalMenuAction
@@ -489,6 +495,113 @@ internal fun parseTaxesMenuSettings(
     }
 
     return Pair(TaxesMenuConfig(payments = payments.toMap(), reward = reward), errors.toList())
+}
+
+/**
+ * Parses a bank menu. Every key is optional: the defaults gate notes, loans and exchanges on the old
+ * Trading skills and deposit right-clicked notes inside the `bank` region of world `world`.
+ */
+internal fun parseBankMenuSettings(
+    menuYaml: Map<*, *>,
+    path: String,
+    currencyLookup: CurrencyLookup,
+    hasVariable: (String) -> Boolean,
+    hasItem: (String) -> Boolean,
+): Pair<BankMenuConfig?, List<Component>> {
+    val errors = ValidationErrors()
+    val allowedKeys = setOf("type", "gates", "noteDepositRegion")
+    val unknownKeys = menuYaml.keys.filterIsInstance<String>().filterNot { it in allowedKeys }
+    if (unknownKeys.isNotEmpty()) {
+        errors.add(path, "Unknown bank menu keys ${unknownKeys.joinToString(", ")}")
+    }
+
+    val gates = BankFeature.entries.associateWith<BankFeature, BankGate?> { it.defaultGate }.toMutableMap()
+    if (menuYaml.containsKey("gates")) {
+        val gatesYaml = asConfigMap(menuYaml["gates"])
+        if (gatesYaml == null) {
+            errors.add("$path.gates", "Invalid field. Expected object, got ${describeConfigValue(menuYaml["gates"])}")
+        } else {
+            for ((rawKey, rawValue) in gatesYaml) {
+                val feature = BankFeature.entries.firstOrNull { it.key == rawKey }
+                if (feature == null) {
+                    errors.add("$path.gates", "Unknown bank gate '$rawKey'. Expected one of ${BankFeature.entries.joinToString(", ") { it.key }}")
+                    continue
+                }
+                gates[feature] = when (rawValue) {
+                    false -> null
+                    is String -> if (rawValue.isBlank()) {
+                        errors.add("$path.gates.${feature.key}", "Cannot be blank")
+                        null
+                    } else {
+                        BankGate(rawValue, feature.defaultGate.skillName.takeIf { rawValue == feature.defaultGate.variable })
+                    }
+                    else -> {
+                        errors.add(
+                            "$path.gates.${feature.key}",
+                            "Invalid field. Expected a variable name or false, got ${describeConfigValue(rawValue)}"
+                        )
+                        null
+                    }
+                }
+            }
+        }
+    }
+    for ((feature, gate) in gates) {
+        if (gate != null && !hasVariable(gate.variable)) {
+            errors.add("$path.gates.${feature.key}", "Required variable '${gate.variable}' is not configured")
+        }
+    }
+
+    var region: BankRegion? = BankMenuConfig.DEFAULT_NOTE_DEPOSIT_REGION
+    if (menuYaml.containsKey("noteDepositRegion")) {
+        val rawRegion = menuYaml["noteDepositRegion"]
+        val parts = (rawRegion as? String)?.split(":", limit = 2)
+        region = when {
+            rawRegion == false -> null
+            parts != null && parts.size == 2 && parts.none { it.isBlank() } -> BankRegion(parts[0], parts[1])
+            else -> {
+                errors.add(
+                    "$path.noteDepositRegion",
+                    "Invalid field. Expected '<world>:<region>' or false, got ${describeConfigValue(rawRegion)}"
+                )
+                null
+            }
+        }
+    }
+
+    // The bank's coins, notes and loans are fixed (BankRules); check that what they rely on exists.
+    for (coin in BankRules.COINS) {
+        val currency = currencyLookup.getCurrency(coin.currencyId)
+        when {
+            currency == null -> errors.add(path, "Currency '${coin.currencyId}' is not configured in currencies.yml")
+            currency.itemId == null || currency.variableId == null ->
+                errors.add(path, "Currency '${coin.currencyId}' must define both an item and a bank variable")
+        }
+        if (!hasVariable(coin.loanVariable)) errors.add(path, "Required variable '${coin.loanVariable}' is not configured")
+        for (note in coin.notes) {
+            if (!hasItem(note.itemId)) errors.add(path, "Required MagicItem '${note.itemId}' is not configured")
+        }
+    }
+    for (display in BankRules.DISPLAY_BALANCES) {
+        if (currencyLookup.getCurrency(display.currencyId)?.variableId == null) {
+            errors.add(path, "Currency '${display.currencyId}' must be configured with a bank variable")
+        }
+    }
+    for (exchange in BankRules.EXCHANGES) {
+        val from = currencyLookup.getCurrency(exchange.from.currencyId) ?: continue
+        if (from.exchangeToCurrency != exchange.to.currencyId || (from.exchangeRate ?: 0) <= 0) {
+            errors.add(
+                path,
+                "Bank exchange needs currency '${from.id}' to exchange to '${exchange.to.currencyId}' at a positive rate"
+            )
+        }
+    }
+    if (!hasItem(BankRules.LOAN_COST_ITEM)) {
+        errors.add(path, "Required MagicItem '${BankRules.LOAN_COST_ITEM}' is not configured")
+    }
+
+    if (errors.isNotEmpty()) return Pair(null, errors.toList())
+    return Pair(BankMenuConfig(gates = gates.filterValues { it != null }.mapValues { it.value!! }, noteDepositRegion = region), errors.toList())
 }
 
 internal fun validateTaxesMenuConfig(
@@ -1445,6 +1558,7 @@ class ConfigManager(private val plugin: SneakyNPCs) {
             "external" -> parseExternalMenu(menuYaml, path, warnings)
             "tailor" -> parseTailorMenu(menuYaml, path)
             "taxes" -> parseTaxesMenu(menuYaml, path)
+            "bank" -> parseBankMenu(menuYaml, path)
             else -> Pair(null, listOf(validationDetail("$path.type", "Unknown menu type '$type'")))
         }
     }
@@ -1978,5 +2092,16 @@ class ConfigManager(private val plugin: SneakyNPCs) {
             hasVariable = { variableId -> Variables.defined(variableId) },
             rewardItemLookup = { itemId -> MagicItems.getMagicItemByInternalName(itemId) },
         )
+    }
+
+    fun parseBankMenu(menuYaml: Map<*, *>, path: String): Pair<BankMenu?, List<Component>> {
+        val (config, errors) = parseBankMenuSettings(
+            menuYaml = menuYaml,
+            path = path,
+            currencyLookup = plugin.currencyGraphService,
+            hasVariable = { variableId -> Variables.defined(variableId) },
+            hasItem = { itemId -> MagicItems.getMagicItemByInternalName(itemId) != null },
+        )
+        return Pair(config?.let(::BankMenu), errors)
     }
 }

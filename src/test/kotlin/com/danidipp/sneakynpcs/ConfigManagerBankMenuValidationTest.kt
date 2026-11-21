@@ -107,9 +107,6 @@ class ConfigManagerBankMenuValidationTest {
             CurrencyDefinition("penny", if (withoutPennyItem) null else "money-penny", null, "bankPenny", "silver", 50, true),
             CurrencyDefinition("silver", "money-silver", null, "bankSilver", "gold", 50, true),
             CurrencyDefinition("gold", "money-gold", null, "bankGold", "diamond", 50, true),
-            CurrencyDefinition("diamond", null, null, "bankDiamond", "mythril", 50, false),
-            CurrencyDefinition("mythril", null, null, "bankMythril", null, null, false),
-            CurrencyDefinition("dragoncoins", null, null, "bankDragonCoin", null, null, false),
         ).associateBy { it.id }
 
         override fun getCurrency(currencyId: String): CurrencyDefinition? = currencies[currencyId]

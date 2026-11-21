@@ -18,3 +18,11 @@ Currency IDs also occur in MagicItem stored-value PDC and persisted NPC Wallet b
 Configured Quest command rewards choose console or player execution through `asConsole` and expand placeholders through PlaceholderAPI when available. Without PlaceholderAPI, the command is dispatched unchanged and unresolved placeholders produce a warning; there is no separate `%player%` replacement in SneakyNPCs.
 
 `TailorMenu` depends on [SneakyMannequins](https://github.com/Team-Sneakymouse/SneakyMannequins): it reads `%sneakymannequins_skin_session_uid%` and invokes `sneakymannequins:mannequin item shirt`, `pants`, or `shirt pants` as the player. Missing mannequin/item permissions are granted temporarily around dispatch and removed afterward. The external and tailor handoffs close the Menu before dispatching on the next tick.
+
+## Bank
+
+The bank menu (`type: bank`) reads and writes these SneakyVariables variables, defined in MagicSpells-Data's `spells-city/spells-city-bank.yml`: the coin balances from `currencies.yml` (`bankPenny`, `bankSilver`, `bankGold`, and `bankDiamond`, `bankMythril` and `bankDragonCoin` for display) and the loans `bankLoanPenny`, `bankLoanSilver` and `bankLoanGold`. Deposits never push a balance past its variable's `max`; the menu refuses them instead. Its default Bank Gates read the Trading skill variables `skillTradingTier6A` (Bank Voucher: withdrawing notes), `skillTradingTier3A` (Loans License) and `skillTradingTier9C` (Trade Mule: exchanges) from `spells-skillTree/spells-skillTree-Trading.yml`.
+
+The bank note MagicItems (`item-pennyNote1k` … `item-goldNote1m`, in `spells-items/spells-item-bankNote.yml`) and `item-holyWrit` (5 per loan) stay registered by MagicSpells. Reload fails for an NPC whose bank menu needs a variable, item or currency that isn't there.
+
+Right-clicking a bank note deposits it while the player stands in the WorldGuard region named by the first loaded bank menu's `noteDepositRegion` (default `world:bank`). It goes through SneakyItems' `MagicItemClickEvent`. Without WorldGuard, notes are only deposited from the menu.

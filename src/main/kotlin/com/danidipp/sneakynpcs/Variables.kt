@@ -7,7 +7,7 @@ import com.sneakyvariables.api.VariableDefinition
 import com.sneakyvariables.api.VariableOwner
 import org.bukkit.entity.Player
 
-/** SneakyVariables helpers for shop bank balances, quest rewards and taxes. */
+/** SneakyVariables helpers for bank balances, loans, quest rewards and taxes. */
 object Variables {
     fun defined(name: String): Boolean =
         SneakyVariables.api().definition(name) != null
@@ -19,6 +19,12 @@ object Variables {
 
     fun setNumber(player: Player, name: String, value: Double) {
         owner(player, name)?.setNumber(name, value)
+    }
+
+    /** The most [name] can hold for [player], or null when it has no upper bound. */
+    fun maxNumber(player: Player, name: String): Double? {
+        val def = SneakyVariables.api().definition(name) ?: return null
+        return def.maxFunction()?.applyAsDouble(player) ?: def.max()
     }
 
     private fun owner(player: Player, name: String): VariableOwner? {

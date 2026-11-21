@@ -179,3 +179,23 @@ _Avoid_: Balance tooltip, currency tooltip
 **Change**:
 Leftover value returned to the player after paying a Price through Currency Exchange.
 _Avoid_: Refund
+
+**Bank Menu**:
+A menu where a player moves Physical Currency to and from Banked Currency, withdraws and deposits Bank Notes, takes out Bank Loans and makes Bank Exchanges. It has a page for notes and one for loans and exchanges; its coins, note denominations and loan amounts are fixed in code (`BankRules`), carried over from the MagicSpells bank.
+_Avoid_: Bank GUI, bank account screen
+
+**Bank Note**:
+A MagicItem worth a fixed amount of one coin's Banked Currency (1k, 10k, 100k or 1M Penny, Silver or Gold), withdrawn from and deposited at the bank. Right-clicking one inside the bank's note deposit region deposits it.
+_Avoid_: Check, voucher, banknote item
+
+**Bank Loan**:
+Banked Currency lent for Holy Writs, at most one outstanding per coin and without interest. While it is outstanding, coin deposits of that coin pay it off before anything reaches the balance; that is the only way to repay it.
+_Avoid_: Debt, credit
+
+**Bank Exchange**:
+A Currency Exchange a player makes in the Bank Menu, turning banked coins into the next coin up at the currencies.yml rate. Players see it as "Convert".
+_Avoid_: Conversion
+
+**Bank Gate**:
+A player variable that must not be 0 before a player may withdraw Bank Notes, take out Bank Loans or make Bank Exchanges. Each defaults to the old Trading skill for that feature.
+_Avoid_: Skill requirement, Shop Item Requirement

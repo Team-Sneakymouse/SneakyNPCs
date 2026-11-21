@@ -35,6 +35,7 @@ repositories {
 	maven("https://repo.papermc.io/repository/maven-public/")
 	maven("https://maven.sneakyrp.com/sneakymouse")
 	maven("https://maven.playpro.com")
+	maven("https://maven.enginehub.org/repo/")
 }
 
 dependencies {
@@ -47,21 +48,26 @@ dependencies {
 	compileOnly("io.github.team-sneakymouse:magicspells:2026.11.08-eca39854a666") {
 		isTransitive = false
 	}
-	compileOnly("io.github.team-sneakymouse:sneakyitems:2026.11.08-edc6088f8201")
+	compileOnly("io.github.team-sneakymouse:sneakyitems:2026.11.18-8682c12c983d")
 	compileOnly("io.github.team-sneakymouse:sneakyutils:2026.11.10-7e1262ebd376")
 	compileOnly("io.github.team-sneakymouse:sneakyvariables:$sneakyVariablesVersion")
+	// Bank: right-clicking a note in the bank region deposits it; optional at runtime
+	compileOnly("com.sk89q.worldguard:worldguard-bukkit:7.0.18") { isTransitive = false }
+	compileOnly("com.sk89q.worldguard:worldguard-core:7.0.18") { isTransitive = false }
+	compileOnly("com.sk89q.worldedit:worldedit-core:7.4.0") { isTransitive = false }
+	compileOnly("com.sk89q.worldedit:worldedit-bukkit:7.4.0") { isTransitive = false }
 	testImplementation(kotlin("test"))
 	testCompileOnly("io.papermc.paper:paper-api:26.2.build.121-stable")
 	testCompileOnly("io.github.team-sneakymouse:magicspells:2026.11.08-eca39854a666") {
 		isTransitive = false
 	}
-	testCompileOnly("io.github.team-sneakymouse:sneakyitems:2026.11.08-edc6088f8201")
+	testCompileOnly("io.github.team-sneakymouse:sneakyitems:2026.11.18-8682c12c983d")
 	testCompileOnly("io.github.team-sneakymouse:sneakyvariables:$sneakyVariablesVersion")
 	testRuntimeOnly("io.papermc.paper:paper-api:26.2.build.121-stable")
 	testRuntimeOnly("io.github.team-sneakymouse:magicspells:2026.11.08-eca39854a666") {
 		isTransitive = false
 	}
-	testRuntimeOnly("io.github.team-sneakymouse:sneakyitems:2026.11.08-edc6088f8201")
+	testRuntimeOnly("io.github.team-sneakymouse:sneakyitems:2026.11.18-8682c12c983d")
 }
 
 tasks.processResources {

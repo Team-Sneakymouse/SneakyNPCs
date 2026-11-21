@@ -92,15 +92,15 @@ class NPCGui(val plugin: SneakyNPCs, val npc: NPC, val player: Player) : Display
         fun onInventoryDrag(event: InventoryDragEvent){
             if (event.inventory.holder !is NPCGui) return
             val gui = event.inventory.holder as NPCGui
-            val shopMenu = gui.menu as? ShopMenu ?: return
             val topSize = event.view.topInventory.size
             val touchesTop = event.rawSlots.any { it < topSize }
             if (!touchesTop) {
                 return
             }
 
+            // Menus are display-only: a drag must never put a real item into them.
             event.isCancelled = true
-            shopMenu.onDrag(gui, event)
+            (gui.menu as? ShopMenu)?.onDrag(gui, event)
         }
 
         @EventHandler

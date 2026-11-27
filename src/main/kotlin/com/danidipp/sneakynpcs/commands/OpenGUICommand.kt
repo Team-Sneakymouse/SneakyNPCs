@@ -20,7 +20,7 @@ import org.bukkit.entity.Player
 object OpenGUICommand {
     val plugin = SneakyNPCs.getInstance()
     fun createCommand(): LiteralArgumentBuilder<CommandSourceStack> {
-        return Commands.literal("opengui").then(Commands
+        return Commands.literal("opengui1").then(Commands
             .argument("npc", StringArgumentType.word())
             .suggests { ctx, builder ->
                 plugin.npcs.keys

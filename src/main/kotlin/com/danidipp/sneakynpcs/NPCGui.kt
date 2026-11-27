@@ -17,23 +17,33 @@ import org.bukkit.event.inventory.InventoryCloseEvent
 import org.bukkit.event.inventory.InventoryDragEvent
 import org.bukkit.inventory.Inventory
 
-class NPCGui(val plugin: SneakyNPCs, val npc: NPC, val player: Player) : DisplayOnlyInventoryHolder {
+/**
+ * The old chest menus. [start] is the first level (the NPC's root menu by default); NPC Screens 3 opens a single row's
+ * menu here and passes [onExit], which runs when the player backs out of that first level (Esc or a click outside).
+ */
+class NPCGui(
+    val plugin: SneakyNPCs,
+    val npc: NPC,
+    val player: Player,
+    private val start: NPCMenu = npc.rootMenu,
+    private val onExit: (() -> Unit)? = null,
+) : DisplayOnlyInventoryHolder {
     private val inventory: Inventory = Bukkit.createInventory(this, 9 * 6, Component.text(npc.id))
     override fun getInventory() = inventory
     private val menuStack = ArrayDeque<NPCMenu>()
-    private var menu: NPCMenu = npc.rootMenu
+    private var menu: NPCMenu = start
     private var reopenOnClose = true
     private var disposed = false
 
     init {
-        menuStack.addLast(npc.rootMenu)
+        menuStack.addLast(start)
         openCurrentMenu()
     }
 
     fun openRoot() {
         closeCurrentMenu()
         menuStack.clear()
-        menuStack.addLast(npc.rootMenu)
+        menuStack.addLast(start)
         playNavigationSound()
         openCurrentMenu()
     }
@@ -117,7 +127,10 @@ class NPCGui(val plugin: SneakyNPCs, val npc: NPC, val player: Player) : Display
 
             if (event.clickedInventory == null) {
                 event.isCancelled = true
-                gui.goBackOneLevel()
+                if (!gui.goBackOneLevel() && gui.onExit != null) {
+                    gui.closeAllLevels()
+                    Bukkit.getScheduler().runTask(gui.plugin) { _ -> gui.onExit.invoke() }
+                }
                 return
             }
 
@@ -145,6 +158,10 @@ class NPCGui(val plugin: SneakyNPCs, val npc: NPC, val player: Player) : Display
                 Bukkit.getScheduler().runTask(SneakyNPCs.getInstance()) { _ ->
                     event.player.openInventory(gui.inventory)
                 }
+            } else if (gui.onExit != null) {
+                gui.closeCurrentMenu()
+                gui.disposed = true
+                Bukkit.getScheduler().runTask(SneakyNPCs.getInstance()) { _ -> gui.onExit.invoke() }
             }
         }
     }

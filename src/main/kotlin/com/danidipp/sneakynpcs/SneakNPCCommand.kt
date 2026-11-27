@@ -20,9 +20,11 @@ object SneakNPCCommand {
             it.sender.hasPermission("sneakynpcs")
         }
         root.then(ReloadCommand.createCommand())
+        // every NPC opens NPC Screens 3 now (Rob, 2026-11-27); the old chest menus stay on opengui1
+        root.then(OpenGUI3Command.createCommand("opengui"))
         root.then(OpenGUICommand.createCommand())
         root.then(OpenGUI2Command.createCommand())
-        root.then(OpenGUI3Command.createCommand())
+        root.then(OpenGUI3Command.createCommand("opengui3"))
         root.then(QuestCommand.createCommand())
         root.then(ReputationCommand.createCommand())
         root.then(WalletCommand.createCommand())

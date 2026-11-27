@@ -3,6 +3,13 @@
 ## What it is
 Reimagined NPC menus that run beside the old `NPCGui` menus, which stay untouched until Rob swaps them. Each screen is a 6-row chest whose **title draws the whole window** as font glyphs: art, portrait and live text. **opengui3** is the current one and copies SneakyRoamin's `/roamin` technique: smooth 4x art drawn as two title glyphs (top 128 px, bottom 100 px) covering both the chest and the player inventory, with items sitting in drawn sockets. opengui2 (`screens2/`) is the earlier take; Rob called it "cheap" and it stays as it is.
 
+## Status (2026-11-27): every NPC is on opengui3
+Rob confirmed opengui3 works in game ("really good"), so the MythicHUD tile fix (TODO 0) is done. **`/sneakynpcs opengui <npc>` now opens opengui3 for every loaded NPC** (Citizens, SneakySneakymon and anything else that calls it); the old chest menus moved to `/sneakynpcs opengui1`. `opengui3` is an alias.
+- `screens3/Npc3Config.kt` builds each hub from the NPC's own root menu in `npc/<id>.yml`: custom rows are dropped, each shop is a row (an NPC with several shops gets one per shop), a Sell row follows the last shop, and Farewell fills a free row, 4 at most (a warning is logged if more). npc2/*.yml is no longer read by opengui3 (opengui2 still uses it).
+- Quest, tailor, taxes, bank and external rows open the old chest menu at that menu (`NPCGui(start, onExit)`); backing out of its first level (Esc or a click outside) reopens the opengui3 hub. External rows run their spell/command as before.
+- Names, titles, portrait and row labels come from `src/main/resources/npc3/screens.yml` in the jar (no file on the server). Some titles there are guesses from the knowledge base.
+- Still to do: every NPC uses the Goat Town palette and the default portrait (only Carl has his own); quest/tailor/taxes/bank still look like the old menus. Next steps are per-NPC portraits, district palettes, and opengui3-style quest/tailor/taxes/bank screens.
+
 ## Status (2026-11-03)
 **Fix for the art boxes is pushed and waiting for a restart (2026-11-03 ~06:30).** With MythicHUD on dev, the big art glyphs showed as missing-glyph boxes and the text drifted left. This hit both opengui3 and `/roamin`; see TODO 0 for the cause. The fix tiles the art: craftengine-resources `d4864c2fa` (npc3) and `58e50a830` (roamin), SneakyNPCs `b57da80`, SneakyRoamin `5944d7c`. Rob's later `/roamin` shot (https://fast.rawb.tv/Fdg3k.png) still showed one box. It was taken before the deploy: `sneakyroamin-2026.11.03-5944d7cb8cd1.jar` was still in `~/dev-main/.update/`, and the "Build and activate dev candidate" run was still queued. The next step is Rob's re-test after a restart and the pack build. If it still breaks, check that the live pack's `lom/font/sneakyroamin/art.json` lists `_0_0`-style tile files and that the player rejoined to get the new pack. Rounds 1-3 visuals are still unverified behind this.
 - **Hub**: name/title header; mirrored 3/4 Carl portrait in one brass frame with the standing under it; 4 option sockets (shop, sell, leave; the 4th is blank on purpose, "for future design use"); reputation `N / 100` with a gold bar in a track (fills over 0..100); an iron strap at y 126.5-138; a ledger over the hidden player inventory (`Npc3Mask`):
@@ -25,7 +32,7 @@ Reimagined NPC menus that run beside the old `NPCGui` menus, which stay untouche
 - `shop/NpcWalletService.kt`: wallet restock; `fill()` gives the fraction and the time it's full again.
 - `tools/npc3_art.py`: draws all art, fonts and the preview, and writes `src/main/resources/npc3_font.txt`. The palette dict `GOATTOWN` and layout constants are at the top.
 - `docs/npc3_preview.png`: the latest preview (hub left, shop right).
-- Config: `npc2/<id>.yml` is shared with opengui2 (re-read on every open; example `src/main/resources/npc2/CarlTheKobold.yml`). The NPC's wallet/shop comes from `npc/<id>.yml`.
+- `screens3/Npc3Config.kt` + `src/main/resources/npc3/screens.yml`: hub rows from `npc/<id>.yml`, labels/names from the jar table. opengui2 still reads `npc2/<id>.yml`.
 
 ## Decisions and why
 - **Title-font art** instead of item-model glyphs: much less machinery. The cost is that changing text means reopening, which recentres the mouse, so per-click data lives in tooltips.
@@ -52,7 +59,7 @@ Reimagined NPC menus that run beside the old `NPCGui` menus, which stay untouche
 3. Other districts need their own palette dict and art glyphs.
 
 ## How to test
-After Rob restarts: `/sneakynpcs opengui3 CarlTheKobold`.
+After Rob restarts: `/sneakynpcs opengui CarlTheKobold` (any NPC id works; `opengui1` is the old menus).
 - Hub: hover the right ledger for the wallet details; the options open the shop, sell or close.
 - Shop: buy, sell (sell box, shift-click, drag across the sell box), pages, back. Esc or a click outside returns to the hub.
 - `/sneakynpcs opengui` (old) and `opengui2` are unchanged.

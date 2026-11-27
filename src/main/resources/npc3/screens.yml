@@ -1,0 +1,80 @@
+# NPC Screens 3 (/sneakynpcs opengui <npc>): how each NPC's window reads. Bundled in the jar, never copied to disk.
+# The hub rows come from the NPC's root menu in npc/<id>.yml (custom rows are left out, a Sell row follows the
+# last shop, Farewell fills a free row; at most 4). Everything here is optional:
+#   name, title (the line under the name), portrait (default or carl)
+#   labels: row text by menu type: shop, shop2, shop3, sell, quest, tailor, taxes, bank, external, external2;
+#           external_hint / external2_hint for the line under an external row
+# An NPC missing here gets its id spaced out ("JackTimbers" -> "Jack Timbers") and default labels.
+
+CarlTheKobold:
+  name: Carl the Kobold
+  title: Goat Town Merchant
+  portrait: carl
+  labels: { external: Gambling, external_hint: Try your luck }
+CindilynLotus:
+  name: Cindilyn Lotus
+  title: Darkvale Tailor
+CynthiaLeomaris:
+  name: Cynthia Leomaris
+  title: Royal Merchant
+DouglassWinechester:
+  name: Douglass Winechester
+  title: Blacksmith
+  labels: { external: Reforge, external_hint: Rework your gear }
+JackTimbers:
+  name: Jack Timbers
+  title: Lumberjack
+JimmyBrickton: { name: Jimmy, title: Brickton }
+JimmyDarkvale: { name: Jimmy, title: Darkvale }
+JimmyDwarven: { name: Jimmy, title: Dwarven }
+JimmyGoatTown: { name: Jimmy, title: Goat Town }
+JimmyGrove: { name: Jimmy, title: Grove }
+JimmyMagicSchool: { name: Jimmy, title: Magic School }
+JimmyMoonbay: { name: Jimmy, title: Moonbay }
+JimmyRoyal: { name: Jimmy, title: Royal }
+JimmySlums: { name: Jimmy, title: Slums }
+JimmySouthshire: { name: Jimmy, title: Southshire }
+JimmySticky: { name: Jimmy, title: Sticky District }
+JohnMcGuffin:
+  name: John McGuffin
+LionelBarringster:
+  name: Lionel Barringster
+  title: City Banker
+LyraVinisto:
+  name: Lyra Vinisto
+  title: Builder's Supply
+  labels: { shop: Moon Bay, shop2: Darkvale, shop3: Sticky District }
+MrChapeau:
+  name: Mr. Chapeau
+  title: Dragon Coin Merchant
+  labels: { shop: Magical Goods }
+NadiyaAzveltara:
+  name: Nadiya Azveltara
+  labels: { external: Slots, external_hint: Contraband slot machine, external2: Fence, external2_hint: No questions asked }
+RayCobbler:
+  name: Ray Cobbler
+  title: Brickton
+RinaTarcialEmbeart:
+  name: Rina Tarcial Embeart
+TalonWinechester:
+  name: Talon Winechester
+  title: Brickton Tailor
+ValereeTaylor:
+  name: Valeree Taylor
+  title: Southshire Tailor
+ValerianVinisto:
+  name: Valerian Vinisto
+  title: Builder's Supply
+  labels: { shop: Deeds & Property, shop2: Brickton, shop3: Dwarven }
+WillowVinisto:
+  name: Willow Vinisto
+  title: Builder's Supply
+  labels: { shop: Goat Town, shop2: Southshire, shop3: Grove }
+professoroakley:
+  name: Professor Oakley
+  title: Sneakymon Professor
+shop:
+  name: Shop
+vivianazveltara:
+  name: Vivian Azveltara
+  title: Powerplant Supervisor

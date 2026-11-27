@@ -2,7 +2,7 @@
 package com.danidipp.sneakynpcs.commands
 
 import com.danidipp.sneakynpcs.SneakyNPCs
-import com.danidipp.sneakynpcs.screens2.Npc2Config
+import com.danidipp.sneakynpcs.screens3.Npc3Config
 import com.danidipp.sneakynpcs.screens3.Npc3Screen
 import com.mojang.brigadier.Command
 import com.mojang.brigadier.arguments.StringArgumentType
@@ -17,15 +17,18 @@ import org.bukkit.Bukkit
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
 
-/** /sneakynpcs opengui3 <npc> [player]: NPC Screens 3, redrawn in SneakyRoamin's style; same npc2/<npc>.yml as opengui2. */
+/**
+ * /sneakynpcs opengui <npc> [player] (also opengui3): NPC Screens 3, in SneakyRoamin's style. Works for every loaded
+ * NPC; the hub rows come from its npc/<id>.yml menus (see [Npc3Config]).
+ */
 object OpenGUI3Command {
     val plugin = SneakyNPCs.getInstance()
 
-    fun createCommand(): LiteralArgumentBuilder<CommandSourceStack> {
-        return Commands.literal("opengui3").then(Commands
+    fun createCommand(literal: String): LiteralArgumentBuilder<CommandSourceStack> {
+        return Commands.literal(literal).then(Commands
             .argument("npc", StringArgumentType.word())
             .suggests { _, builder ->
-                Npc2Config.ids(plugin.dataFolder)
+                plugin.npcs.keys.sorted()
                     .filter { it.startsWith(builder.remaining, ignoreCase = true) }
                     .forEach { builder.suggest(it) }
                 builder.buildFuture()
@@ -50,20 +53,17 @@ object OpenGUI3Command {
     }
 
     private fun open(sender: CommandSender, id: String, player: Player) {
-        val config = Npc2Config.load(plugin.dataFolder, id) ?: run {
-            sender.sendMessage(plugin.prefix.append(Component.text("No npc2/$id.yml found.", NamedTextColor.RED)))
+        val npc = plugin.npcs[id] ?: plugin.npcs.entries.firstOrNull { it.key.equals(id, ignoreCase = true) }?.value ?: run {
+            sender.sendMessage(plugin.prefix.append(Component.text("NPC with ID '$id' not found.", NamedTextColor.RED)))
             return
         }
-        config.warnings.forEach { plugin.logger.warning("npc2/${config.id}.yml: $it") }
-        val npc = plugin.npcs[config.npcId] ?: run {
-            sender.sendMessage(plugin.prefix.append(Component.text("npc2/${config.id}.yml names NPC '${config.npcId}', which isn't loaded.", NamedTextColor.RED)))
-            return
-        }
+        val config = Npc3Config.of(npc)
+        config.warnings.forEach { plugin.logger.warning("NPC Screens 3 '${npc.id}': $it") }
         plugin.persistenceManager.getPlayerData(player.uniqueId).whenComplete { _, throwable ->
             Bukkit.getScheduler().runTask(plugin, Runnable {
                 if (!player.isOnline) return@Runnable
                 if (throwable != null || !plugin.persistenceManager.dataCache.containsKey(player.uniqueId)) {
-                    plugin.logger.warning("Failed to load player data for ${player.name} before opening npc3 '${config.id}': ${throwable?.message}")
+                    plugin.logger.warning("Failed to load player data for ${player.name} before opening npc3 '${npc.id}': ${throwable?.message}")
                     player.sendMessage(plugin.prefix.append(Component.text("Failed to fetch your data. Please tell Dani.", NamedTextColor.RED)))
                     return@Runnable
                 }

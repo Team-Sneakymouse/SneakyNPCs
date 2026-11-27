@@ -8,9 +8,8 @@ import com.danidipp.sneakynpcs.menus.ShopMenu
 import com.danidipp.sneakynpcs.menus.ShopMenuItem
 import com.danidipp.sneakynpcs.menus.formatBankDisplayAmount
 import com.danidipp.sneakynpcs.menus.shopOfferPage
-import com.danidipp.sneakynpcs.screens2.Npc2Config
+import com.danidipp.sneakynpcs.NPCGui
 import com.danidipp.sneakynpcs.screens2.Npc2Memory
-import com.danidipp.sneakynpcs.screens2.Npc2Option
 import com.danidipp.sneakynpcs.screens3.Npc3Layout.CREAM
 import com.danidipp.sneakynpcs.screens3.Npc3Layout.GOLD
 import com.danidipp.sneakynpcs.screens3.Npc3Layout.MUTED
@@ -43,11 +42,13 @@ import java.util.Locale
  * NPC Screens 3 (/sneakynpcs opengui3): the hub and shop redrawn from the ground up in SneakyRoamin's style. The
  * whole window is art (tools/npc3_art.py): on the hub the player's inventory is hidden under a ledger of purse, till
  * and what you last bought ([Npc3Mask]); on the shop the player's items show in drawn sockets so they can sell.
- * Reads the same npc2/<id>.yml as Screens 2. Esc or a click outside the window from the shop goes back to the hub.
+ * Every NPC has one ([Npc3Config]): its hub rows are the NPC's own menus. Shops open here; quest, tailor, taxes, bank
+ * and external rows open the old chest menu, which comes back to this hub on Esc. Esc or a click outside the window
+ * from the shop goes back to the hub.
  */
 internal class Npc3Screen(
     private val plugin: SneakyNPCs,
-    private val config: Npc2Config,
+    private val config: Npc3Config,
     private val npc: NPC,
     private val player: Player,
 ) : DisplayOnlyInventoryHolder {
@@ -58,7 +59,11 @@ internal class Npc3Screen(
     private var inventory: Inventory = Bukkit.createInventory(this, 54, Component.empty())
     /** set while one screen replaces another, so the old one's close isn't taken as Esc */
     private var switching = false
-    private val shop: ShopMenu? = npc.allMenus.filterIsInstance<ShopMenu>().firstOrNull()
+    private val firstShop: ShopMenu? = config.options.firstNotNullOfOrNull { (it.action as? Npc3Action.Shop)?.menu }
+        ?: npc.allMenus.filterIsInstance<ShopMenu>().firstOrNull()
+    /** the shop the shop page shows (an NPC may have several) */
+    private var shop: ShopMenu? = firstShop
+    private var shopLabel = "Wares"
     private var shownOffers: List<ShopMenuItem> = emptyList()
 
     override fun getInventory() = inventory
@@ -110,8 +115,8 @@ internal class Npc3Screen(
 
         config.options.forEachIndexed { i, option ->
             val y = Npc3Layout.rowY(i)
-            t.text(Npc3Layout.OPTION_TEXT_X, y, option.label, CREAM)
-            t.text(Npc3Layout.OPTION_TEXT_X, y + 8, hint(option), MUTED)
+            t.text(Npc3Layout.OPTION_TEXT_X, y, Npc3Text.fit(option.label, OPTION_WIDTH), CREAM)
+            t.text(Npc3Layout.OPTION_TEXT_X, y + 8, Npc3Text.fit(option.hint, OPTION_WIDTH), MUTED)
         }
 
         val next = nextStanding(rep)
@@ -155,26 +160,14 @@ internal class Npc3Screen(
         return tillLines().ifEmpty { listOf("Empty") } + listOfNotNull(tillPerHour(), refill)
     }
 
-    private fun hint(option: Npc2Option) = when (option) {
-        Npc2Option.SHOP -> "See what's for sale"
-        Npc2Option.SELL -> "Trade goods for coin"
-        Npc2Option.LEAVE -> "Be on your way"
-    }
-
-    private fun icon(option: Npc2Option) = when (option) {
-        Npc2Option.SHOP -> Material.CHEST
-        Npc2Option.SELL -> Material.GOLD_NUGGET
-        Npc2Option.LEAVE -> Material.OAK_DOOR
-    }
-
     private fun reputation() = plugin.persistenceManager.dataCache[player.uniqueId]?.getReputation(npc.id) ?: 0.0
 
     private fun fillHub(inv: Inventory) {
         val portrait = button(config.name, listOfNotNull(config.title.takeIf { it.isNotBlank() }))
         for (row in 0..3) for (col in 0..2) inv.setItem(Npc3Layout.slot(col, row), portrait)
         config.options.forEachIndexed { i, option ->
-            inv.setItem(Npc3Layout.slot(3, i), item(icon(option), option.label, listOf(hint(option))))
-            val label = button(option.label, listOf(hint(option)))
+            inv.setItem(Npc3Layout.slot(3, i), item(option.icon, option.label, listOf(option.hint)))
+            val label = button(option.label, listOf(option.hint))
             for (col in 4..8) inv.setItem(Npc3Layout.slot(col, i), label)
         }
         val rep = reputation()
@@ -238,7 +231,7 @@ internal class Npc3Screen(
         val offers = visibleOffers()
         shopPage = shopOfferPage(offers, shopPage, PRODUCT_SLOTS.size).index
         val t = header(Npc3Layout.SHOP_TOP)
-        t.right(Npc3Layout.RIGHT, 6, if (offers.isEmpty()) "Nothing for sale" else "Wares", MUTED)
+        t.right(Npc3Layout.RIGHT, 6, if (offers.isEmpty()) "Nothing for sale" else Npc3Text.fit(shopLabel, 80), MUTED)
         t.art(Npc3Layout.SHOP_BOTTOM, 0)
 
         val purse = bankBalance(PURSE_DEFAULT)?.let { "${formatBankDisplayAmount(it)} ${currencyName(PURSE_DEFAULT)}" } ?: "-"
@@ -359,10 +352,11 @@ internal class Npc3Screen(
                 if (raw == 54 + HOTBAR + 4) return player.closeInventory()
                 if (raw >= 54 || raw % 9 < 3) return
                 val option = config.options.getOrNull(raw / 9) ?: return
-                when (option) {
-                    Npc2Option.SHOP -> if (shop != null) navigate(Page.SHOP) else fail("${config.name} has nothing to sell.")
-                    Npc2Option.SELL -> if (shop != null) navigate(Page.SHOP) else fail("${config.name} isn't buying.")
-                    Npc2Option.LEAVE -> player.closeInventory()
+                when (val action = option.action) {
+                    is Npc3Action.Shop -> openShop(action.menu, option.label)
+                    Npc3Action.Sell -> firstShop?.let { openShop(it, "Wares") } ?: fail("${config.name} isn't buying.")
+                    Npc3Action.Leave -> player.closeInventory()
+                    is Npc3Action.Legacy -> openLegacy(action.menu)
                 }
             }
             Page.SHOP -> {
@@ -389,6 +383,24 @@ internal class Npc3Screen(
         }
     }
 
+    private fun openShop(menu: ShopMenu, label: String) {
+        if (menu !== shop) shopPage = 0
+        shop = menu
+        shopLabel = label
+        navigate(Page.SHOP)
+    }
+
+    /** The old chest menu for this row; Esc (or a click outside) at its first level comes back to this hub. */
+    private fun openLegacy(menu: com.danidipp.sneakynpcs.menus.NPCMenu) {
+        player.playSound(player.location, "lom:ui.button.click", 1f, 1f)
+        switching = true
+        val gui = NPCGui(plugin, npc, player, menu) {
+            if (player.isOnline) Npc3Screen(plugin, config, npc, player).open()
+        }
+        if (!gui.isDisposed()) player.openInventory(gui.inventory)
+        switching = false
+    }
+
     private fun sellFromCursor(event: InventoryClickEvent) {
         val cursor = event.cursor
         if (cursor.type.isAir || cursor.amount <= 0) return
@@ -409,6 +421,7 @@ internal class Npc3Screen(
 
     companion object Listener : org.bukkit.event.Listener {
         private const val HOTBAR = 27
+        private const val OPTION_WIDTH = Npc3Layout.RIGHT - Npc3Layout.OPTION_TEXT_X - 4
         /** the hub purse, in this order (Rob, 2026-11-02); the shop's purse line shows [PURSE_DEFAULT] */
         private val PURSE_CURRENCIES = listOf("silver", "gold", "dragoncoins")
         private const val PURSE_DEFAULT = "gold"

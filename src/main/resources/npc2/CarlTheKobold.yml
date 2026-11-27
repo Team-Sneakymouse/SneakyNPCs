@@ -1,7 +1,0 @@
-# NPC Screens 2 (/sneakynpcs opengui2 CarlTheKobold): read on every open, so edits need no reload.
-npc: CarlTheKobold        # the npc/<id>.yml whose shop, wallet and reputation this uses (default: this file's name)
-name: Carl the Kobold
-title: Goat Town Merchant # the line under the name (optional)
-district: goattown        # the frame: goattown (more districts to come)
-portrait: carl            # default or carl
-options: [shop, sell, leave]  # up to four: shop, sell, leave

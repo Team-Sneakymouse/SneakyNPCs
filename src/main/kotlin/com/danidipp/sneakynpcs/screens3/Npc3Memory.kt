@@ -1,4 +1,4 @@
-package com.danidipp.sneakynpcs.screens2
+package com.danidipp.sneakynpcs.screens3
 
 import me.clip.placeholderapi.PlaceholderAPI
 import org.bukkit.Bukkit
@@ -8,9 +8,9 @@ import org.bukkit.persistence.PersistentDataType
 
 /**
  * What an NPC remembers of a character: the last thing they bought from them, kept on the player (one entry per
- * character and NPC).
+ * character and NPC). The key still says npc2/, from NPC Screens 2, so nobody loses theirs.
  */
-internal object Npc2Memory {
+internal object Npc3Memory {
     private const val UUID_PLACEHOLDER = "%sneakycharacters_character_uuid%"
 
     private fun characterId(player: Player): String =

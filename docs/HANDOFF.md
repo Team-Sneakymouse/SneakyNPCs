@@ -1,10 +1,11 @@
-# Handoff: NPC Screens (`/sneakynpcs opengui3`, also opengui2)
+# Handoff: NPC Screens (`/sneakynpcs opengui`, alias `opengui3`)
 
 ## What it is
 Reimagined NPC menus that run beside the old `NPCGui` menus, which stay untouched until Rob swaps them. Each screen is a 6-row chest whose **title draws the whole window** as font glyphs: art, portrait and live text. **opengui3** is the current one and copies SneakyRoamin's `/roamin` technique: smooth 4x art drawn as two title glyphs (top 128 px, bottom 100 px) covering both the chest and the player inventory, with items sitting in drawn sockets. opengui2 (`screens2/`) is the earlier take; Rob called it "cheap" and it stays as it is.
 
 ## Status (2026-11-27): every NPC is on opengui3
-Rob confirmed opengui3 works in game ("really good"), so the MythicHUD tile fix (TODO 0) is done. **`/sneakynpcs opengui <npc>` now opens opengui3 for every loaded NPC** (Citizens, SneakySneakymon and anything else that calls it); the old chest menus moved to `/sneakynpcs opengui1`. `opengui3` is an alias.
+**Cleanup (2026-11-27, Rob: "we are set on using 3"):** opengui1 (old root/selection and shop chest menus) and opengui2 (`screens2/`, `npc2/*.yml`, its pack fonts) are deleted. `ShopMenu`, `SelectionMenu` and `CustomMenu` are now data only. `NPCGui` stays for the quest/tailor/taxes/bank/external rows. The "last bought" memory moved to `screens3/Npc3Memory.kt` and keeps its `npc2/` PDC key. `tools/npc2_render.py` and `tools/npc2_art/` stay because `npc3_art.py` reads them. The old art in craftengine-resources `resources/base` (`lom:npcs/*`, per-NPC `gui-<style>`) is still used by live's old SneakyNPCs and by the tailor/taxes/quest menus, so it stays; the selection `main` art, `tradewindow`, `pagecount`, `progressbar-gold/-reputation` and `friendship` can go once this build is on live.
+Rob confirmed opengui3 works in game ("really good"), so the MythicHUD tile fix (TODO 0) is done. **`/sneakynpcs opengui <npc>` now opens opengui3 for every loaded NPC** (Citizens, SneakySneakymon and anything else that calls it); `opengui3` is an alias.
 - `screens3/Npc3Config.kt` builds each hub from the NPC's own root menu in `npc/<id>.yml`: custom rows are dropped, each shop is a row (an NPC with several shops gets one per shop), a Sell row follows the last shop, and Farewell fills a free row, 4 at most (a warning is logged if more). npc2/*.yml is no longer read by opengui3 (opengui2 still uses it).
 - Quest, tailor, taxes, bank and external rows open the old chest menu at that menu (`NPCGui(start, onExit)`); backing out of its first level (Esc or a click outside) reopens the opengui3 hub. External rows run their spell/command as before.
 - Names, titles, portrait and row labels come from `src/main/resources/npc3/screens.yml` in the jar (no file on the server). Some titles there are guesses from the knowledge base.
@@ -59,7 +60,6 @@ Rob confirmed opengui3 works in game ("really good"), so the MythicHUD tile fix 
 3. Other districts need their own palette dict and art glyphs.
 
 ## How to test
-After Rob restarts: `/sneakynpcs opengui CarlTheKobold` (any NPC id works; `opengui1` is the old menus).
+After Rob restarts: `/sneakynpcs opengui CarlTheKobold` (any NPC id works).
 - Hub: hover the right ledger for the wallet details; the options open the shop, sell or close.
 - Shop: buy, sell (sell box, shift-click, drag across the sell box), pages, back. Esc or a click outside returns to the hub.
-- `/sneakynpcs opengui` (old) and `opengui2` are unchanged.

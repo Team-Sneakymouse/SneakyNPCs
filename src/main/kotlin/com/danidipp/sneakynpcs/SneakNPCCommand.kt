@@ -1,8 +1,6 @@
 @file:Suppress("UnstableApiUsage")
 package com.danidipp.sneakynpcs
 
-import com.danidipp.sneakynpcs.commands.OpenGUICommand
-import com.danidipp.sneakynpcs.commands.OpenGUI2Command
 import com.danidipp.sneakynpcs.commands.OpenGUI3Command
 import com.danidipp.sneakynpcs.commands.QuestCommand
 import com.danidipp.sneakynpcs.commands.ReputationCommand
@@ -20,10 +18,8 @@ object SneakNPCCommand {
             it.sender.hasPermission("sneakynpcs")
         }
         root.then(ReloadCommand.createCommand())
-        // every NPC opens NPC Screens 3 now (Rob, 2026-11-27); the old chest menus stay on opengui1
+        // NPC Screens 3 is the only NPC window (Rob, 2026-11-27); opengui3 stays as an alias
         root.then(OpenGUI3Command.createCommand("opengui"))
-        root.then(OpenGUICommand.createCommand())
-        root.then(OpenGUI2Command.createCommand())
         root.then(OpenGUI3Command.createCommand("opengui3"))
         root.then(QuestCommand.createCommand())
         root.then(ReputationCommand.createCommand())

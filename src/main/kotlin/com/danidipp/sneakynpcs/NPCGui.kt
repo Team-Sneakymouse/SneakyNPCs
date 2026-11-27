@@ -2,7 +2,6 @@
 package com.danidipp.sneakynpcs
 
 import com.danidipp.sneakynpcs.menus.NPCMenu
-import com.danidipp.sneakynpcs.menus.ShopMenu
 import com.sneakyutils.util.DisplayOnlyInventoryHolder
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.NamedTextColor
@@ -18,14 +17,14 @@ import org.bukkit.event.inventory.InventoryDragEvent
 import org.bukkit.inventory.Inventory
 
 /**
- * The old chest menus. [start] is the first level (the NPC's root menu by default); NPC Screens 3 opens a single row's
- * menu here and passes [onExit], which runs when the player backs out of that first level (Esc or a click outside).
+ * The chest menus behind NPC Screens 3's quest, tailor, taxes, bank and external rows. [start] is the row's menu;
+ * [onExit] runs when the player backs out of it (Esc or a click outside) and reopens the Screens 3 hub.
  */
 class NPCGui(
     val plugin: SneakyNPCs,
     val npc: NPC,
     val player: Player,
-    private val start: NPCMenu = npc.rootMenu,
+    private val start: NPCMenu,
     private val onExit: (() -> Unit)? = null,
 ) : DisplayOnlyInventoryHolder {
     private val inventory: Inventory = Bukkit.createInventory(this, 9 * 6, Component.text(npc.id))
@@ -37,14 +36,6 @@ class NPCGui(
 
     init {
         menuStack.addLast(start)
-        openCurrentMenu()
-    }
-
-    fun openRoot() {
-        closeCurrentMenu()
-        menuStack.clear()
-        menuStack.addLast(start)
-        playNavigationSound()
         openCurrentMenu()
     }
 
@@ -110,7 +101,6 @@ class NPCGui(
 
             // Menus are display-only: a drag must never put a real item into them.
             event.isCancelled = true
-            (gui.menu as? ShopMenu)?.onDrag(gui, event)
         }
 
         @EventHandler
@@ -140,13 +130,7 @@ class NPCGui(
                 return
             }
 
-            if (!event.isShiftClick) {
-                return
-            }
-
-            event.isCancelled = true
-            val shopMenu = gui.menu as? ShopMenu ?: return
-            shopMenu.onPlayerInventoryClick(gui, event)
+            if (event.isShiftClick) event.isCancelled = true
         }
 
         @EventHandler

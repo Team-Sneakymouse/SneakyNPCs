@@ -9,7 +9,6 @@ import com.danidipp.sneakynpcs.menus.ShopMenuItem
 import com.danidipp.sneakynpcs.menus.formatBankDisplayAmount
 import com.danidipp.sneakynpcs.menus.shopOfferPage
 import com.danidipp.sneakynpcs.NPCGui
-import com.danidipp.sneakynpcs.screens2.Npc2Memory
 import com.danidipp.sneakynpcs.screens3.Npc3Layout.CREAM
 import com.danidipp.sneakynpcs.screens3.Npc3Layout.GOLD
 import com.danidipp.sneakynpcs.screens3.Npc3Layout.MUTED
@@ -132,7 +131,7 @@ internal class Npc3Screen(
         // the NPC's wallet is a bar that fills back up over time; the numbers are on its tooltip (Rob, 2026-11-02)
         t.text(Npc3Layout.WALLET_X, 141, Npc3Text.fit("${firstName()}'s Wallet", 74), GOLD)
         bar(t, Npc3Layout.WALLET_X, Npc3Layout.WALLET_BAR_Y, Npc3Layout.WALLET_SEGMENTS, walletFill().first, Npc3Layout.WALLET_GREEN)
-        val last = Npc2Memory.lastPurchase(player, npc.id)
+        val last = Npc3Memory.lastPurchase(player, npc.id)
         t.center(88, 181, Npc3Text.fit(if (last != null) "You last bought $last here" else "Your first time at this counter", 154), MUTED)
         return t.build()
     }
@@ -307,7 +306,7 @@ internal class Npc3Screen(
         when (val result = plugin.shopTransactionService.purchase(player, playerData, npc, offer, quantity)) {
             is ShopTransactionService.PurchaseResult.Success -> {
                 val name = itemName(offer.magicItem.itemStack)
-                Npc2Memory.rememberPurchase(player, npc.id, name)
+                Npc3Memory.rememberPurchase(player, npc.id, name)
                 player.playSound(player.location, "lom:buy", 1f, 1f)
                 val total = offer.price.amount.toLong() * result.deliveredQuantity
                 player.sendMessage(Component.text("You bought ${result.deliveredQuantity}x $name for $total ${ShopMessageFormatter.formatCurrencyId(offer.price.currencyId)}", NamedTextColor.GRAY))

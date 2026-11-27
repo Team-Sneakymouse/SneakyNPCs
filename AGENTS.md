@@ -14,4 +14,4 @@ For domain terminology, read `CONTEXT.md`.
 
 When changing currencies or cross-plugin commands, read `docs/integrations.md`.
 
-When working on the NPC Screens (`/sneakynpcs opengui`, alias `opengui3`; the old chest menus are `opengui1`; opengui2 is an earlier version and stays as it is), read `docs/HANDOFF.md` and check its status date against recent commits.
+When working on the NPC Screens (`/sneakynpcs opengui`, alias `opengui3`; the only NPC window), read `docs/HANDOFF.md` and check its status date against recent commits.

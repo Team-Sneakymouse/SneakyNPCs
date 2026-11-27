@@ -35,9 +35,27 @@ def _faces(box, origin, inflate):
     ]
 
 
-def portrait_from_skin(skin_path, size=208, yaw=-35, pitch=15, background=None):
+def _boxes(slim, legacy):
+    """BOXES for a skin: slim (Alex) arms are 3 px wide; a legacy 64x32 skin has no overlays and reuses the right arm."""
+    out = []
+    for (u, v, w, h, d), (ox, oy, oz), inflate in BOXES:
+        is_arm = w == 4 and h == 12 and (u, v) != (16, 16) and (u, v) != (16, 32)
+        if legacy and v >= 32:
+            if (u, v) != (32, 48):
+                continue
+            u, v = 40, 16  # left arm: the right arm's texture
+        if slim and is_arm:
+            w = 3
+            if ox < 0:
+                ox = -7
+        out.append(((u, v, w, h, d), (ox, oy, oz), inflate))
+    return out
+
+
+def portrait_from_skin(skin_path, size=208, yaw=-35, pitch=15, background=None, slim=False):
     """A head-and-shoulders render of a skin, turned three quarters, over background (or transparent)."""
     skin = Image.open(skin_path).convert("RGBA")
+    boxes = _boxes(slim, skin.height == 32)
     cy, sy = math.cos(math.radians(yaw)), math.sin(math.radians(yaw))
     cp, sp = math.cos(math.radians(pitch)), math.sin(math.radians(pitch))
 
@@ -55,7 +73,7 @@ def portrait_from_skin(skin_path, size=208, yaw=-35, pitch=15, background=None):
     img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     zbuf = [[-1e9] * size for _ in range(size)]
     pix = img.load()
-    for box, origin, inflate in BOXES:
+    for box, origin, inflate in boxes:
         for corner, ex, ey, (tu, tv, tw, th), shade in _faces(box, origin, inflate):
             a = screen(corner)
             b = screen(tuple(corner[i] + ex[i] for i in range(3)))

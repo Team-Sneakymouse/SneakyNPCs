@@ -138,10 +138,13 @@ internal object Npc3Layout {
     const val SHOP_TOP = ''
     const val SHOP_BOTTOM = ''
 
-    /** in tools/npc3_art.py's PORTRAIT_ORDER */
-    private val portraits = listOf("default", "carl")
+    /** in tools/npc3_art.py's PORTRAITS order (rendered from the knowledge base's Citizens NPC skins) */
+    private val portraits = listOf(
+        "default", "carl", "mrchapeau", "rina", "valerian", "lyra", "willow", "nadiya", "cindilyn", "valeree", "lionel",
+        "cynthia", "talon", "john", "jimmy", "vivian", "darrius", "minotaur",
+    )
 
-    fun portrait(name: String): Char = (0xE210 + portraits.indexOf(name).coerceAtLeast(0)).toChar()
+    fun portrait(name: String): Char = (0xE400 + portraits.indexOf(name).coerceAtLeast(0)).toChar()
 
     fun slot(col: Int, row: Int) = row * 9 + col
 

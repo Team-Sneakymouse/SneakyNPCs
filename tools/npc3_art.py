@@ -1,6 +1,6 @@
 """Art and fonts for NPC Screens 3 (/sneakynpcs opengui3) into a craftengine-resources checkout.
 
-    uv run --no-project --with pillow python tools/npc3_art.py <craftengine-resources>/resources/dev/resourcepack/assets/lom [preview.png]
+    uv run --no-project --with pillow python tools/npc3_art.py <craftengine-resources>/resources/systems/resourcepack/assets/lom [preview.png]
 
 Same technique as SneakyRoamin's /roamin menu: each screen's art is two title glyphs at 4x (font `lom:npc3/art`), the
 chest part (176x128 GUI px) and the player's inventory part below it (176x100), so the whole window is drawn smooth
@@ -26,6 +26,8 @@ from npc2_render import portrait_from_skin  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent
 ART = ROOT / "npc2_art"
+# NPC skins from the knowledge base (lom-knowledge world/reference/npc-skins, pulled from Citizens saves.yml)
+SKINS = ROOT.parents[2] / "knowledge/world/reference/npc-skins"
 WIDTHS = ROOT.parent / "src/main/resources/npc3_font.txt"
 TEXT_TTF = "C:/Windows/Fonts/LiberationSansNarrow-Bold.ttf"
 S = 4  # texels per GUI px
@@ -317,7 +319,15 @@ def portrait_default(pal=GOATTOWN):
 
 def portraits():
     # mirrored so the NPC faces right, toward the option plaques (Rob, 2026-11-02)
-    return {"default": portrait_default(), "carl": ImageOps.mirror(portrait_from_skin(ART / "carl_skin.png", background=portrait_bg()))}
+    npcs = {n["id"]: n for n in json.loads((SKINS / "npcs.json").read_text(encoding="utf-8"))}
+    out = {}
+    for name, npc_id in PORTRAITS.items():
+        if npc_id is None:
+            out[name] = portrait_default()
+            continue
+        npc = npcs[npc_id]
+        out[name] = ImageOps.mirror(portrait_from_skin(SKINS / npc["file"], background=portrait_bg(), slim=npc["slim"]))
+    return out
 
 
 # ------------------------------------------------------------------ fonts
@@ -331,12 +341,19 @@ SHIFT_BASE = 0xE110  # E110-E117: -1 .. -128, E118-E11F: +1 .. +128
 SPACE = 3
 KERN = 0xE120        # -1: the plugin puts it after every glyph, undoing the client's +1, so letters sit at their own spacing
 ART_BASE = 0xE200    # hub top, hub bottom, shop top, shop bottom
-PORTRAIT_BASE = 0xE210
+PORTRAIT_BASE = 0xE400  # one glyph per PORTRAITS entry, after the window tiles
 # Each window half is cut into TILE x TILE texel glyphs from TILE_BASE on: the vanilla font atlas is 256x256 per page, so a
 # whole 704 px half only rendered while ImmediatelyFast's atlas resizing was on (it turns off for packs with text shaders).
 TILE = 128
 TILE_BASE = 0xE220
-PORTRAIT_ORDER = ["default", "carl"]  # Npc3Portraits
+# portrait name -> the Citizens NPC id whose skin it renders (SKINS/npcs.json). Order is the glyph order: append only,
+# and keep Npc3Layout.portraits in step. Jimmy is the orange-armour one (Citizens 23).
+PORTRAITS = {
+    "default": None, "carl": 16, "mrchapeau": 10, "rina": 11, "valerian": 14, "lyra": 12, "willow": 13, "nadiya": 15,
+    "cindilyn": 17, "valeree": 18, "lionel": 19, "cynthia": 20, "talon": 21, "john": 22, "jimmy": 23, "vivian": 69,
+    "darrius": 5, "minotaur": 7,
+}
+PORTRAIT_ORDER = list(PORTRAITS)  # Npc3Portraits
 
 
 def text_cell(code, cell, base, size):
@@ -417,6 +434,10 @@ def build(assets: Path):
         pics[name].save(tex / f"portrait_{name}.png", optimize=True)
         providers.append({"type": "bitmap", "file": f"lom:font/npc3/portrait_{name}.png", "height": 52, "ascent": 13 - PORTRAIT[1], "chars": [chr(PORTRAIT_BASE + i)]})
         widths[PORTRAIT_BASE + i] = 53
+    # jars from before 2026-11-27 put default and carl at E210/E211; keep those chars working until live has this build
+    for i, name in enumerate(["default", "carl"]):
+        providers.append({"type": "bitmap", "file": f"lom:font/npc3/portrait_{name}.png", "height": 52, "ascent": 13 - PORTRAIT[1], "chars": [chr(0xE210 + i)]})
+        widths[0xE210 + i] = 53
     write_json(assets / "font/npc3/art.json", {"providers": providers})
 
     shifts = {chr(SHIFT_BASE + i): -(1 << i) for i in range(8)}

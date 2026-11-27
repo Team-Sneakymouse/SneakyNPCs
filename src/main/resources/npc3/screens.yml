@@ -1,7 +1,7 @@
 # NPC Screens 3 (/sneakynpcs opengui <npc>): how each NPC's window reads. Bundled in the jar, never copied to disk.
 # The hub rows come from the NPC's root menu in npc/<id>.yml (custom rows are left out, a Sell row follows the
 # last shop, Farewell fills a free row; at most 4). Everything here is optional:
-#   name, title (the line under the name), portrait (default or carl)
+#   name, title (the line under the name), portrait (a name from Npc3Layout.portraits / tools/npc3_art.py PORTRAITS; default if unset)
 #   labels: row text by menu type: shop, shop2, shop3, sell, quest, tailor, taxes, bank, external, external2;
 #           external_hint / external2_hint for the line under an external row
 # An NPC missing here gets its id spaced out ("JackTimbers" -> "Jack Timbers") and default labels.
@@ -13,9 +13,11 @@ CarlTheKobold:
   labels: { external: Gambling, external_hint: Try your luck }
 CindilynLotus:
   name: Cindilyn Lotus
+  portrait: cindilyn
   title: Darkvale Tailor
 CynthiaLeomaris:
   name: Cynthia Leomaris
+  portrait: cynthia
   title: Royal Merchant
 DouglassWinechester:
   name: Douglass Winechester
@@ -24,50 +26,60 @@ DouglassWinechester:
 JackTimbers:
   name: Jack Timbers
   title: Lumberjack
-JimmyBrickton: { name: Jimmy, title: Brickton }
-JimmyDarkvale: { name: Jimmy, title: Darkvale }
-JimmyDwarven: { name: Jimmy, title: Dwarven }
-JimmyGoatTown: { name: Jimmy, title: Goat Town }
-JimmyGrove: { name: Jimmy, title: Grove }
-JimmyMagicSchool: { name: Jimmy, title: Magic School }
-JimmyMoonbay: { name: Jimmy, title: Moonbay }
-JimmyRoyal: { name: Jimmy, title: Royal }
-JimmySlums: { name: Jimmy, title: Slums }
-JimmySouthshire: { name: Jimmy, title: Southshire }
-JimmySticky: { name: Jimmy, title: Sticky District }
+JimmyBrickton: { name: Jimmy, title: Brickton, portrait: jimmy }
+JimmyDarkvale: { name: Jimmy, title: Darkvale, portrait: jimmy }
+JimmyDwarven: { name: Jimmy, title: Dwarven, portrait: jimmy }
+JimmyGoatTown: { name: Jimmy, title: Goat Town, portrait: jimmy }
+JimmyGrove: { name: Jimmy, title: Grove, portrait: jimmy }
+JimmyMagicSchool: { name: Jimmy, title: Magic School, portrait: jimmy }
+JimmyMoonbay: { name: Jimmy, title: Moonbay, portrait: jimmy }
+JimmyRoyal: { name: Jimmy, title: Royal, portrait: jimmy }
+JimmySlums: { name: Jimmy, title: Slums, portrait: jimmy }
+JimmySouthshire: { name: Jimmy, title: Southshire, portrait: jimmy }
+JimmySticky: { name: Jimmy, title: Sticky District, portrait: jimmy }
 JohnMcGuffin:
   name: John McGuffin
+  portrait: john
 LionelBarringster:
   name: Lionel Barringster
+  portrait: lionel
   title: City Banker
 LyraVinisto:
   name: Lyra Vinisto
+  portrait: lyra
   title: Builder's Supply
   labels: { shop: Moon Bay, shop2: Darkvale, shop3: Sticky District }
 MrChapeau:
   name: Mr. Chapeau
+  portrait: mrchapeau
   title: Dragon Coin Merchant
   labels: { shop: Magical Goods }
 NadiyaAzveltara:
   name: Nadiya Azveltara
+  portrait: nadiya
   labels: { external: Slots, external_hint: Contraband slot machine, external2: Fence, external2_hint: No questions asked }
 RayCobbler:
   name: Ray Cobbler
   title: Brickton
 RinaTarcialEmbeart:
   name: Rina Tarcial Embeart
+  portrait: rina
 TalonWinechester:
   name: Talon Winechester
+  portrait: talon
   title: Brickton Tailor
 ValereeTaylor:
   name: Valeree Taylor
+  portrait: valeree
   title: Southshire Tailor
 ValerianVinisto:
   name: Valerian Vinisto
+  portrait: valerian
   title: Builder's Supply
   labels: { shop: Deeds & Property, shop2: Brickton, shop3: Dwarven }
 WillowVinisto:
   name: Willow Vinisto
+  portrait: willow
   title: Builder's Supply
   labels: { shop: Goat Town, shop2: Southshire, shop3: Grove }
 professoroakley:
@@ -77,4 +89,5 @@ shop:
   name: Shop
 vivianazveltara:
   name: Vivian Azveltara
+  portrait: vivian
   title: Powerplant Supervisor

@@ -27,6 +27,10 @@ dependencies:
     SneakyMannequins:
       load: BEFORE
       required: false
+    SneakyHorses:
+      load: BEFORE
+      required: false
+      join-classpath: true
     PlaceholderAPI:
       load: BEFORE
       required: false

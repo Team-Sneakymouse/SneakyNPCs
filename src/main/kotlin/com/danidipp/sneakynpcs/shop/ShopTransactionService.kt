@@ -25,6 +25,7 @@ class ShopTransactionService(
     private val npcWalletService: NpcWalletService,
     private val shopItemStockService: ShopItemStockService,
     private val inventoryTransactionLogger: InventoryTransactionLogger,
+    private val creditCards: CreditCardPayments = NoCreditCards,
 ) {
     private val storeCurrencyKey by lazy(LazyThreadSafetyMode.NONE) {
         NamespacedKey(MagicSpells.getInstance(), "magicspellpermanentdata_store_value_currency")
@@ -41,9 +42,14 @@ class ShopTransactionService(
             val spent: List<CurrencyUnits>,
             val earned: List<CurrencyUnits>,
             val deliveredQuantity: Int,
+            /** Set when a pony credit card paid it all ([spent] is then empty). */
+            val card: CardCharge? = null,
         ) : PurchaseResult()
         data class Failure(val message: String) : PurchaseResult()
     }
+
+    /** [gold] charged as princess debt to the card [cardName]. */
+    data class CardCharge(val cardId: String, val cardName: String, val gold: Long)
 
     sealed class SellResult {
         data class Success(
@@ -187,6 +193,13 @@ class ShopTransactionService(
             )
         }
 
+        // A carried pony credit card pays first, the way it does at the auction (Rob, 2026-11-27).
+        CreditCardPayments.goldFor(currencyGraphService, priceCurrency.id, requiredAtomic)?.let { gold ->
+            val cardId = creditCards.charge(player, gold) ?: return@let
+            val charge = CardCharge(cardId, creditCards.cardName(cardId), gold)
+            return deliverCardPurchase(player, playerData, npc, shopItem, purchasableStack, effectiveQuantity, charge)
+        }
+
         val plan = buildPaymentPlan(player, priceCurrency, requiredAtomic, priceAtomic)
             ?: return PurchaseResult.Failure("You don't have enough money.")
 
@@ -250,6 +263,51 @@ class ShopTransactionService(
             spent = plan.spends.map { CurrencyUnits(it.currencyId, it.units) },
             earned = earned,
             deliveredQuantity = effectiveQuantity,
+        )
+    }
+
+    /** Hands over a purchase a card already paid; takes the charge back off the card if it can't be delivered. */
+    private fun deliverCardPurchase(
+        player: Player,
+        playerData: PlayerData,
+        npc: NPC,
+        shopItem: ShopMenuItem,
+        purchasableStack: org.bukkit.inventory.ItemStack,
+        quantity: Int,
+        charge: CardCharge,
+    ): PurchaseResult {
+        val refund = { message: String ->
+            creditCards.refund(player, charge.cardId, charge.gold)
+            PurchaseResult.Failure(message)
+        }
+        val leftovers = player.inventory.addItem(purchasableStack.clone())
+        val delivered = quantity - leftovers.values.sumOf { it.amount }
+        val takeBack = {
+            if (delivered > 0) player.inventory.removeItem(purchasableStack.clone().apply { amount = delivered })
+        }
+        if (leftovers.isNotEmpty()) {
+            takeBack()
+            return refund("Not enough inventory space.")
+        }
+        when (val stockResult = shopItemStockService.consumeForPurchase(
+            playerData = playerData,
+            npcId = npc.id,
+            stockEntryId = shopItem.stockEntryId,
+            limits = shopItem.limits,
+            requestedQuantity = quantity,
+        )) {
+            is ShopItemStockService.ConsumeResult.Failure -> {
+                takeBack()
+                return refund(stockResult.message)
+            }
+            is ShopItemStockService.ConsumeResult.Success -> Unit
+        }
+        inventoryTransactionLogger.log(player = player, addedItems = listOf(purchasableStack.clone()))
+        return PurchaseResult.Success(
+            spent = emptyList(),
+            earned = emptyList(),
+            deliveredQuantity = quantity,
+            card = charge,
         )
     }
 

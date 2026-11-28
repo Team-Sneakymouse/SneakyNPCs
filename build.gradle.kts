@@ -50,6 +50,8 @@ dependencies {
 	}
 	compileOnly("io.github.team-sneakymouse:sneakyitems:2026.11.20-b1b03c4a324f")
 	compileOnly("io.github.team-sneakymouse:sneakyutils:2026.11.10-7e1262ebd376")
+	// Shops: purchases go on a carried pony credit card (PrincessDebtApi); optional at runtime
+	compileOnly("io.github.team-sneakymouse:sneakyhorses:2026.11.28-91be93cbe48d") { isTransitive = false }
 	compileOnly("io.github.team-sneakymouse:sneakyvariables:$sneakyVariablesVersion")
 	// Bank: right-clicking a note in the bank region deposits it; optional at runtime
 	compileOnly("com.sk89q.worldguard:worldguard-bukkit:7.0.18") { isTransitive = false }

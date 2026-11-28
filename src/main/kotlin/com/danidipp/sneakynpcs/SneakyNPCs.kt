@@ -8,6 +8,7 @@ import com.danidipp.sneakynpcs.shop.NpcWalletService
 import com.danidipp.sneakynpcs.shop.RequirementService
 import com.danidipp.sneakynpcs.shop.ShopItemStockService
 import com.danidipp.sneakynpcs.shop.ShopTransactionService
+import com.danidipp.sneakynpcs.shop.SneakyHorsesCreditCards
 import com.nisovin.magicspells.MagicSpells
 import com.nisovin.magicspells.events.MagicSpellsLoadedEvent
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents
@@ -67,6 +68,7 @@ class SneakyNPCs : JavaPlugin() {
             npcWalletService,
             shopItemStockService,
             inventoryTransactionLogger,
+            SneakyHorsesCreditCards(),
         )
         bankService = BankService(this)
 

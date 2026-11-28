@@ -26,3 +26,7 @@ The bank menu (`type: bank`) reads and writes these SneakyVariables variables, d
 The bank note MagicItems (`item-pennyNote1k` … `item-goldNote1m`, in `spells-items/spells-item-bankNote.yml`) and `item-holyWrit` (5 per loan) stay registered by MagicSpells. Reload fails for an NPC whose bank menu needs a variable, item or currency that isn't there.
 
 Right-clicking a bank note deposits it while the player stands in the WorldGuard region named by the first loaded bank menu's `noteDepositRegion` (default `world:bank`). It goes through SneakyItems' `MagicItemClickEvent`. Without WorldGuard, notes are only deposited from the menu.
+
+## Pony credit cards
+
+Shop purchases priced in the gold family (`penny`, `silver`, `gold`) go on a pony credit card the player carries before any coins or bank are touched, the same order as a SneakyHorses auction bid. [SneakyHorses](https://github.com/Team-Sneakymouse/SneakyHorses) owns the cards and the princess debt ledger; `shop/CreditCardPayments.kt` calls its `com.sneakyhorses.api.PrincessDebtApi` (`charge`, `refund`, `cardName`). The ledger counts whole gold, so a price that isn't whole gold rounds up. SneakyHorses is an optional dependency joined to the classpath; without it, or with its card module off, shops pay as before. A purchase that can't be delivered is refunded off the card. Tailor and taxes payments don't use cards.

@@ -309,7 +309,8 @@ internal class Npc3Screen(
                 Npc3Memory.rememberPurchase(player, npc.id, name)
                 player.playSound(player.location, "lom:buy", 1f, 1f)
                 val total = offer.price.amount.toLong() * result.deliveredQuantity
-                player.sendMessage(Component.text("You bought ${result.deliveredQuantity}x $name for $total ${ShopMessageFormatter.formatCurrencyId(offer.price.currencyId)}", NamedTextColor.GRAY))
+                val paid = result.card?.let { " on your 💳 ${it.cardName} (${"%,d".format(it.gold)}g princess debt)" } ?: ""
+                player.sendMessage(Component.text("You bought ${result.deliveredQuantity}x $name for $total ${ShopMessageFormatter.formatCurrencyId(offer.price.currencyId)}$paid", NamedTextColor.GRAY))
                 show(Page.SHOP)
             }
             is ShopTransactionService.PurchaseResult.Failure -> fail(result.message)

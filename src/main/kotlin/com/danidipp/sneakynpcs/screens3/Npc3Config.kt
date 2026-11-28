@@ -25,11 +25,12 @@ internal sealed interface Npc3Action {
     data class Legacy(val menu: NPCMenu) : Npc3Action
 }
 
-internal data class Npc3Option(val label: String, val hint: String, val icon: Material, val action: Npc3Action)
+/** [iconModel]: an item_model id (e.g. lom:district_crest_moonbay) shown on a PAPER icon instead of [icon]. */
+internal data class Npc3Option(val label: String, val hint: String, val icon: Material, val action: Npc3Action, val iconModel: String? = null)
 
 /**
  * One NPC's Screens 3 window. Every loaded NPC has one: the hub rows come from the NPC's own root menu (npc/<id>.yml),
- * and the name, title, portrait and row labels from the table bundled in the jar (npc3/screens.yml), so no NPC needs
+ * and the name, title, portrait, row labels and row icons from the table bundled in the jar (npc3/screens.yml), so no NPC needs
  * a file on the server.
  */
 internal data class Npc3Config(
@@ -57,6 +58,7 @@ internal data class Npc3Config(
         fun build(npc: NPC, entry: ConfigurationSection?): Npc3Config {
             val warnings = mutableListOf<String>()
             val labels = entry?.getConfigurationSection("labels")
+            val icons = entry?.getConfigurationSection("icons")
             val roots = (npc.rootMenu as? SelectionMenu)?.childMenus() ?: listOf(npc.rootMenu)
 
             val options = mutableListOf<Npc3Option>()
@@ -71,7 +73,7 @@ internal data class Npc3Config(
                 options += when (menu) {
                     is ShopMenu -> {
                         shopIndex++
-                        Npc3Option(custom ?: if (roots.count { it is ShopMenu } > 1) "Wares $shopIndex" else "Browse wares", "See what's for sale", Material.CHEST, Npc3Action.Shop(menu))
+                        Npc3Option(custom ?: if (roots.count { it is ShopMenu } > 1) "Wares $shopIndex" else "Browse wares", "See what's for sale", Material.CHEST, Npc3Action.Shop(menu), icons?.getString(key))
                     }
                     is ExternalMenu -> Npc3Option(custom ?: externalLabel(menu), labels?.getString("${key}_hint") ?: "Step this way", Material.ENDER_EYE, Npc3Action.Legacy(menu))
                     else -> legacy(menu, custom)

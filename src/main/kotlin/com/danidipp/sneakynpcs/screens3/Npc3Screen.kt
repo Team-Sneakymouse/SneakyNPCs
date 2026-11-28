@@ -165,7 +165,7 @@ internal class Npc3Screen(
         val portrait = button(config.name, listOfNotNull(config.title.takeIf { it.isNotBlank() }))
         for (row in 0..3) for (col in 0..2) inv.setItem(Npc3Layout.slot(col, row), portrait)
         config.options.forEachIndexed { i, option ->
-            inv.setItem(Npc3Layout.slot(3, i), item(option.icon, option.label, listOf(option.hint)))
+            inv.setItem(Npc3Layout.slot(3, i), optionIcon(option))
             val label = button(option.label, listOf(option.hint))
             for (col in 4..8) inv.setItem(Npc3Layout.slot(col, i), label)
         }
@@ -443,6 +443,14 @@ internal class Npc3Screen(
             editMeta { meta ->
                 meta.displayName(Component.text(name, NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false))
                 meta.lore(lore.map { Component.text(it, NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false) })
+            }
+        }
+
+        /** The row's icon: its material, or a PAPER item wearing the row's item_model (a district crest). */
+        private fun optionIcon(option: Npc3Option): ItemStack {
+            val model = option.iconModel?.let { NamespacedKey.fromString(it) }
+            return item(if (model != null) Material.PAPER else option.icon, option.label, listOf(option.hint)).apply {
+                if (model != null) setData(DataComponentTypes.ITEM_MODEL, model)
             }
         }
 

@@ -7,10 +7,12 @@ import com.danidipp.sneakynpcs.menus.ExternalMenu
 import com.danidipp.sneakynpcs.menus.ExternalMenuAction
 import com.danidipp.sneakynpcs.menus.NPCMenu
 import com.danidipp.sneakynpcs.menus.SelectionMenu
+import com.danidipp.sneakynpcs.menus.ShopMenu
 import org.bukkit.configuration.file.YamlConfiguration
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertNull
 
 class Npc3ConfigTest {
     private fun npc(id: String, root: NPCMenu) = NPC(id, id.lowercase(), false, NpcWalletConfig("gold", 10L, 60L, 1L), root)
@@ -48,5 +50,20 @@ class Npc3ConfigTest {
         assertEquals("Fence", config.title)
         assertEquals(listOf("Slots", "Fence", "Farewell"), config.options.map { it.label })
         assertEquals("No questions asked", config.options[1].hint)
+    }
+
+    @Test
+    fun `the table's icons put a district crest on a shop row and other rows keep the chest`() {
+        val root = SelectionMenu("main", listOf(ShopMenu(emptyList(), emptyList()), ShopMenu(emptyList(), emptyList())))
+        val entry = YamlConfiguration().apply {
+            set("labels.shop", "Deeds & Property")
+            set("labels.shop2", "Brickton")
+            set("icons.shop2", "lom:district_crest_brickton")
+        }
+        val config = Npc3Config.build(npc("ValerianVinisto", root), entry)
+
+        assertEquals(listOf("Deeds & Property", "Brickton", "Sell goods", "Farewell"), config.options.map { it.label })
+        assertNull(config.options[0].iconModel)
+        assertEquals("lom:district_crest_brickton", config.options[1].iconModel)
     }
 }

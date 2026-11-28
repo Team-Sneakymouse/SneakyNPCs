@@ -4,6 +4,8 @@
 #   name, title (the line under the name), portrait (a name from Npc3Layout.portraits / tools/npc3_art.py PORTRAITS; default if unset)
 #   labels: row text by menu type: shop, shop2, shop3, sell, quest, tailor, taxes, bank, external, external2;
 #           external_hint / external2_hint for the line under an external row
+#   icons:  item_model shown instead of the chest on a shop row, keyed like labels (shop, shop2, shop3);
+#           the district crests are lom:district_crest_<district> (craftengine-resources district_crests.yml)
 # An NPC missing here gets its id spaced out ("JackTimbers" -> "Jack Timbers") and default labels.
 
 CarlTheKobold:
@@ -49,6 +51,7 @@ LyraVinisto:
   portrait: lyra
   title: Builder's Supply
   labels: { shop: Moon Bay, shop2: Darkvale, shop3: Sticky District }
+  icons: { shop: "lom:district_crest_moonbay", shop2: "lom:district_crest_darkvale", shop3: "lom:district_crest_sticky" }
 MrChapeau:
   name: Mr. Chapeau
   portrait: mrchapeau
@@ -77,11 +80,13 @@ ValerianVinisto:
   portrait: valerian
   title: Builder's Supply
   labels: { shop: Deeds & Property, shop2: Brickton, shop3: Dwarven }
+  icons: { shop2: "lom:district_crest_brickton", shop3: "lom:district_crest_dwarven" }
 WillowVinisto:
   name: Willow Vinisto
   portrait: willow
   title: Builder's Supply
   labels: { shop: Goat Town, shop2: Southshire, shop3: Grove }
+  icons: { shop: "lom:district_crest_goattown", shop2: "lom:district_crest_southshire", shop3: "lom:district_crest_grove" }
 professoroakley:
   name: Professor Oakley
   title: Sneakymon Professor
